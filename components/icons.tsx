@@ -66,3 +66,11 @@ export const StarIcon: React.FC<{className?: string; isFilled?: boolean}> = ({cl
 export const RefreshCwIcon: React.FC<{className?: string}> = ({className}) => (
     <svg {...iconProps} className={className}><path d="M3 2v6h6"/><path d="M21 12A9 9 0 0 0 6 5.3L3 8"/><path d="M21 22v-6h-6"/><path d="M3 12a9 9 0 0 0 15 6.7l3-2.7"/></svg>
 );
+
+export const CheckCircleIcon: React.FC<{className?: string}> = ({className}) => (
+    <svg {...iconProps} className={className}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+);
+
+export const BotMessageSquareIcon: React.FC<{className?: string}> = ({className}) => (
+    <svg {...iconProps} className={className}><path d="M12 6V2H8"/><path d="m8 18-4 4V8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2Z"/><path d="M2 12h2"/><path d="M9 11v2"/><path d="M15 11v2"/><path d="M20 12h2"/></svg>
+);

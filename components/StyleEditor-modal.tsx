@@ -222,13 +222,13 @@ Return your scores in a JSON object format, where the keys are the exact axis na
             const newScores = { ...formData.scores };
 
             // FIX: Add a type guard to ensure parsedScores is an object before iterating over it.
-            // This prevents runtime errors and helps TypeScript correctly infer types.
+            // This prevents runtime errors if the API returns non-JSON text and helps TypeScript correctly infer types.
             if (parsedScores && typeof parsedScores === 'object') {
                 for (const [axisName, score] of Object.entries(parsedScores)) {
                     const axisId = nameToIdMap.get(axisName);
                     if (axisId && typeof score === 'number') {
                         // Clamp the score to the valid range just in case
-                        newScores[axisId] = Math.max(AXIS_SCORE_MIN, Math.min(AXIS_SCORE_MAX, score as number));
+                        newScores[axisId] = Math.max(AXIS_SCORE_MIN, Math.min(AXIS_SCORE_MAX, score));
                     }
                 }
             }

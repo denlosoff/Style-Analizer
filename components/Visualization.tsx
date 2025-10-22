@@ -10,7 +10,7 @@ interface VisualizationProps {
     isClusteringEnabled: boolean;
     clusterAssignments: number[] | null;
     clusterNames: Record<number, string>;
-    projectionData: number[][] | null;
+    projectionData: Record<string, number[]> | null;
     isCalculatingProjection: boolean;
     projectionError: string | null;
     selectedStyleId: string | null;
@@ -124,19 +124,29 @@ const Visualization: React.FC<VisualizationProps> = ({
                     coverImageUrl: style.images[style.coverImageIndex ?? 0] || FALLBACK_IMAGE_URL,
                 }));
             } else { // UMAP or PCA 1D/2D
+                if (!projectionData) return; // Should be caught earlier, but for type safety
                 xAxisLabel = `${projectionMode.toUpperCase()} 1`;
                 yAxisLabel = `${projectionMode.toUpperCase()} 2`;
-                
-                allPointsData = spaceData.styles.map((style, i) => ({
+
+                const pointsWithCoords = spaceData.styles
+                    .map(style => ({
+                        style,
+                        coords: projectionData[style.id]
+                    }))
+                    .filter((item): item is { style: Style, coords: number[] } => !!item.coords);
+
+                allPointsData = pointsWithCoords.map(({ style, coords }) => ({
                     id: style.id, name: style.name,
-                    x: projectionData![i][0],
-                    y: dimension === 2 ? projectionData![i][1] : 0,
-                    isScored: true, // always scored for projection
+                    x: coords[0],
+                    y: dimension === 2 ? coords[1] : 0,
+                    isScored: true,
                     coverImageUrl: style.images[style.coverImageIndex ?? 0] || FALLBACK_IMAGE_URL,
                 }));
                 
-                const xExtent = d3.extent(allPointsData, d => d.x) as [number, number];
-                const yExtent = dimension === 2 ? d3.extent(allPointsData, d => d.y) as [number, number] : [-1, 1];
+                if (allPointsData.length === 0) return;
+
+                const xExtent = d3.extent(allPointsData, d => d.x) as [number, number] || [0, 1];
+                const yExtent = dimension === 2 ? d3.extent(allPointsData, d => d.y) as [number, number] || [0, 1] : [-1, 1];
                 
                 xScale = d3.scaleLinear().domain([xExtent[0] - (xExtent[1]-xExtent[0])*0.1, xExtent[1] + (xExtent[1]-xExtent[0])*0.1]).range([0, innerWidth]);
                 yScale = dimension === 2 
@@ -144,7 +154,7 @@ const Visualization: React.FC<VisualizationProps> = ({
                     : d3.scaleLinear().domain([-1, 1]).range([innerHeight / 2, innerHeight / 2]);
             }
             
-            const visiblePointsData = allPointsData.filter(p => filteredStyleIds.includes(p.id));
+            const visiblePointsData = allPointsData ? allPointsData.filter(p => filteredStyleIds.includes(p.id)) : [];
 
             const xAxis = d3.axisBottom(xScale);
             g.append('g')
@@ -181,9 +191,9 @@ const Visualization: React.FC<VisualizationProps> = ({
                 .attr('r', d => halfPointSize(d.id) + 5)
                 .attr('fill', 'none')
                 .attr('stroke', d => {
-                    if (!clusterAssignments) return 'transparent';
+                    if (!isClusteringEnabled || !clusterAssignments) return 'transparent';
                     const originalIndex = spaceData.styles.findIndex(s => s.id === d.id);
-                    if (originalIndex === -1) return 'transparent';
+                    if (originalIndex === -1 || clusterAssignments[originalIndex] === -1) return 'transparent';
                     return clusterColors(clusterAssignments[originalIndex].toString());
                 })
                 .attr('stroke-width', 3);
@@ -234,18 +244,33 @@ const Visualization: React.FC<VisualizationProps> = ({
                     { id: 'z-axis', type: 'axis', label: spaceData.axes.find(a => a.id === activeAxisIds[2])?.name, start: {x: 0, y: 0, z: -1}, end: {x: 0, y: 0, z: 1}, color: '#7777FF' },
                 ];
             } else { // UMAP or PCA 3D
+                if (!projectionData) return;
+
+                const pointsWithCoords3D = spaceData.styles
+                    .map(style => ({
+                        style,
+                        coords: projectionData[style.id]
+                    }))
+                    .filter((item): item is { style: Style, coords: number[] } => !!item.coords);
+
+                if (pointsWithCoords3D.length === 0) return;
+
+                const projectionPoints = pointsWithCoords3D.map(({coords}) => coords);
+                
                 const extents = [
-                    d3.extent(projectionData!, d => d[0]),
-                    d3.extent(projectionData!, d => d[1]),
-                    d3.extent(projectionData!, d => d[2]),
+                    d3.extent(projectionPoints, d => d[0]),
+                    d3.extent(projectionPoints, d => d[1]),
+                    d3.extent(projectionPoints, d => d[2]),
                 ];
                 const scales = extents.map(e => d3.scaleLinear().domain(e!).range([-1, 1]));
-                allPointsData = spaceData.styles.map((style, i) => ({
+                
+                allPointsData = pointsWithCoords3D.map(({ style, coords }) => ({
                      id: style.id, name: style.name, type: 'point',
-                    coverImageUrl: style.images[style.coverImageIndex ?? 0] || FALLBACK_IMAGE_URL,
-                    isScored: true,
-                    data: { x: scales[0](projectionData![i][0]), y: scales[1](projectionData![i][1]), z: scales[2](projectionData![i][2]) }
+                     coverImageUrl: style.images[style.coverImageIndex ?? 0] || FALLBACK_IMAGE_URL,
+                     isScored: true,
+                     data: { x: scales[0](coords[0]), y: scales[1](coords[1]), z: scales[2](coords[2]) }
                 }));
+                
                 axesData = [
                     { id: 'x-axis', type: 'axis', label: `${projectionMode.toUpperCase()} 1`, start: {x: -1, y: 0, z: 0}, end: {x: 1, y: 0, z: 0}, color: '#FF7777' },
                     { id: 'y-axis', type: 'axis', label: `${projectionMode.toUpperCase()} 2`, start: {x: 0, y: -1, z: 0}, end: {x: 0, y: 1, z: 0}, color: '#77FF77' },
@@ -296,9 +321,9 @@ const Visualization: React.FC<VisualizationProps> = ({
                 .attr('r', d => pointSize(d) + 5)
                 .attr('stroke-width', 3)
                 .attr('stroke', d => {
-                    if (!clusterAssignments) return 'transparent';
+                    if (!isClusteringEnabled || !clusterAssignments) return 'transparent';
                     const originalIndex = spaceData.styles.findIndex(s => s.id === d.id);
-                    if (originalIndex === -1) return 'transparent';
+                    if (originalIndex === -1 || clusterAssignments[originalIndex] === -1) return 'transparent';
                     return clusterColors(clusterAssignments[originalIndex].toString());
                 });
 
@@ -318,7 +343,7 @@ const Visualization: React.FC<VisualizationProps> = ({
                 <div className="absolute bottom-4 left-4 bg-gray-800 bg-opacity-80 p-3 rounded-lg text-white text-sm max-w-xs pointer-events-auto">
                     <h4 className="font-bold mb-2">Cluster Legend</h4>
                     <ul className="space-y-1">
-                        {Array.from<number>(new Set(clusterAssignments)).sort((a,b) => a - b).map(clusterId => (
+                        {Array.from<number>(new Set(clusterAssignments)).sort((a,b) => a - b).filter(id => id !== -1).map(clusterId => (
                             <li key={clusterId} className="flex items-center">
                                 <span 
                                     className="w-4 h-4 rounded-full mr-2 border border-white/50 flex-shrink-0"

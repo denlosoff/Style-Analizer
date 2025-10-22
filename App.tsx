@@ -196,7 +196,7 @@ const App: React.FC = () => {
     const [umapClusterCount, setUmapClusterCount] = useState<number>(5);
     const [umapClusterAssignments, setUmapClusterAssignments] = useState<number[] | null>(null);
     const [umapClusterNames, setUmapClusterNames] = useState<Record<number, string>>({});
-    const [umapData, setUmapData] = useState<number[][] | null>(null);
+    const [umapData, setUmapData] = useState<Record<string, number[]> | null>(null);
     const [isCalculatingUmap, setIsCalculatingUmap] = useState(false);
     const [umapError, setUmapError] = useState<string | null>(null);
 
@@ -206,10 +206,12 @@ const App: React.FC = () => {
     const [pcaClusterCount, setPcaClusterCount] = useState<number>(5);
     const [pcaClusterAssignments, setPcaClusterAssignments] = useState<number[] | null>(null);
     const [pcaClusterNames, setPcaClusterNames] = useState<Record<number, string>>({});
-    const [pcaData, setPcaData] = useState<number[][] | null>(null);
+    const [pcaData, setPcaData] = useState<Record<string, number[]> | null>(null);
     const [isCalculatingPca, setIsCalculatingPca] = useState(false);
     const [pcaError, setPcaError] = useState<string | null>(null);
 
+    // Projection calculation filtering
+    const [isProjectionCalculationFiltered, setIsProjectionCalculationFiltered] = useState<boolean>(false);
 
     const [selectedStyleId, setSelectedStyleId] = useState<string | null>(null);
 
@@ -393,12 +395,22 @@ const App: React.FC = () => {
             setIsCalculatingUmap(true);
             setUmapData(null);
             setUmapError(null);
+            
+            const stylesForProjection = isProjectionCalculationFiltered 
+                ? spaceData.styles.filter(s => filteredStyleIds.includes(s.id))
+                : spaceData.styles;
 
-            const dataMatrix = spaceData.styles.map(style =>
+            if (stylesForProjection.length === 0) {
+                setUmapError(`No styles to process for UMAP.`);
+                setIsCalculatingUmap(false);
+                return;
+            }
+
+            const dataMatrix = stylesForProjection.map(style =>
                 umapAxisIds.map(axisId => style.scores[axisId] ?? MIDPOINT_SCORE)
             );
 
-            if (dataMatrix.length < 3 || umapAxisIds.length < 2) {
+            if (stylesForProjection.length < 3 || umapAxisIds.length < 2) {
                 setUmapError(`UMAP requires at least 3 styles and 2 source axes.`);
                 setIsCalculatingUmap(false);
                 return;
@@ -409,13 +421,18 @@ const App: React.FC = () => {
 
                 const umap = new UMAP({
                     nComponents: dimension,
-                    nNeighbors: Math.min(15, dataMatrix.length - 1),
+                    nNeighbors: Math.min(15, stylesForProjection.length - 1),
                     minDist: 0.1,
                     spread: 1.0,
                 });
                 
                 const embedding = await umap.fitAsync(dataMatrix);
-                setUmapData(embedding);
+                
+                const embeddingMap: Record<string, number[]> = {};
+                stylesForProjection.forEach((style, index) => {
+                    embeddingMap[style.id] = embedding[index];
+                });
+                setUmapData(embeddingMap);
 
             } catch (error) {
                 console.error("UMAP calculation failed", error);
@@ -426,7 +443,7 @@ const App: React.FC = () => {
         };
 
         calculateUmap();
-    }, [projectionMode, umapAxisIds, spaceData, dimension]);
+    }, [projectionMode, umapAxisIds, spaceData, dimension, isProjectionCalculationFiltered, filteredStyleIds]);
 
     // Recalculate PCA embedding when dependencies change
     useEffect(() => {
@@ -440,12 +457,22 @@ const App: React.FC = () => {
             setIsCalculatingPca(true);
             setPcaData(null);
             setPcaError(null);
+            
+            const stylesForProjection = isProjectionCalculationFiltered
+                ? spaceData.styles.filter(s => filteredStyleIds.includes(s.id))
+                : spaceData.styles;
+            
+            if (stylesForProjection.length === 0) {
+                setPcaError(`No styles to process for PCA.`);
+                setIsCalculatingPca(false);
+                return;
+            }
 
-            const dataMatrix = spaceData.styles.map(style =>
+            const dataMatrix = stylesForProjection.map(style =>
                 pcaAxisIds.map(axisId => style.scores[axisId] ?? MIDPOINT_SCORE)
             );
 
-            if (dataMatrix.length < 2 || pcaAxisIds.length < dimension) {
+            if (stylesForProjection.length < 2 || pcaAxisIds.length < dimension) {
                 setPcaError(`PCA requires at least 2 styles and ${dimension} source axes for ${dimension}D projection.`);
                 setIsCalculatingPca(false);
                 return;
@@ -458,7 +485,13 @@ const App: React.FC = () => {
                 if (!embedding) {
                     throw new Error("PCA calculation returned null.");
                 }
-                setPcaData(embedding);
+
+                const embeddingMap: Record<string, number[]> = {};
+                stylesForProjection.forEach((style, index) => {
+                    embeddingMap[style.id] = embedding[index];
+                });
+
+                setPcaData(embeddingMap);
 
             } catch (error) {
                 console.error("PCA calculation failed", error);
@@ -469,35 +502,55 @@ const App: React.FC = () => {
         };
 
         calculatePca();
-    }, [projectionMode, pcaAxisIds, spaceData, dimension]);
+    }, [projectionMode, pcaAxisIds, spaceData, dimension, isProjectionCalculationFiltered, filteredStyleIds]);
 
     // Recalculate UMAP clusters when dependencies change
     useEffect(() => {
-        if (projectionMode === 'umap' && isUmapClusteringEnabled && umapData) {
-            if (umapData.length > umapClusterCount && umapClusterCount > 1) {
-                const { clusters } = kmeans(umapData, umapClusterCount);
-                setUmapClusterAssignments(clusters);
+        if (projectionMode === 'umap' && isUmapClusteringEnabled && umapData && spaceData) {
+            const styleIdsInProjection = Object.keys(umapData);
+            const pointsForClustering = styleIdsInProjection.map(id => umapData[id]);
+
+            if (pointsForClustering.length > umapClusterCount && umapClusterCount > 1) {
+                const { clusters } = kmeans(pointsForClustering, umapClusterCount);
+
+                const assignmentsMap: Record<string, number> = {};
+                styleIdsInProjection.forEach((id, index) => {
+                    assignmentsMap[id] = clusters[index];
+                });
+
+                const fullAssignments = spaceData.styles.map(style => assignmentsMap[style.id] ?? -1);
+                setUmapClusterAssignments(fullAssignments);
             } else {
                 setUmapClusterAssignments(null);
             }
         } else {
             setUmapClusterAssignments(null);
         }
-    }, [isUmapClusteringEnabled, umapClusterCount, umapData, projectionMode]);
+    }, [isUmapClusteringEnabled, umapClusterCount, umapData, projectionMode, spaceData]);
 
     // Recalculate PCA clusters when dependencies change
     useEffect(() => {
-        if (projectionMode === 'pca' && isPcaClusteringEnabled && pcaData) {
-            if (pcaData.length > pcaClusterCount && pcaClusterCount > 1) {
-                const { clusters } = kmeans(pcaData, pcaClusterCount);
-                setPcaClusterAssignments(clusters);
+        if (projectionMode === 'pca' && isPcaClusteringEnabled && pcaData && spaceData) {
+            const styleIdsInProjection = Object.keys(pcaData);
+            const pointsForClustering = styleIdsInProjection.map(id => pcaData[id]);
+            
+            if (pointsForClustering.length > pcaClusterCount && pcaClusterCount > 1) {
+                const { clusters } = kmeans(pointsForClustering, pcaClusterCount);
+                
+                const assignmentsMap: Record<string, number> = {};
+                styleIdsInProjection.forEach((id, index) => {
+                    assignmentsMap[id] = clusters[index];
+                });
+
+                const fullAssignments = spaceData.styles.map(style => assignmentsMap[style.id] ?? -1);
+                setPcaClusterAssignments(fullAssignments);
             } else {
                 setPcaClusterAssignments(null);
             }
         } else {
             setPcaClusterAssignments(null);
         }
-    }, [isPcaClusteringEnabled, pcaClusterCount, pcaData, projectionMode]);
+    }, [isPcaClusteringEnabled, pcaClusterCount, pcaData, projectionMode, spaceData]);
 
     const handleSetUmapClusterCount = (count: number) => {
         setUmapClusterCount(count);
@@ -757,6 +810,8 @@ const App: React.FC = () => {
                 clusterNames={clusterNames}
                 setClusterNames={isUmapMode ? setUmapClusterNames : setPcaClusterNames}
                 projectionData={projectionData}
+                isProjectionCalculationFiltered={isProjectionCalculationFiltered}
+                setIsProjectionCalculationFiltered={setIsProjectionCalculationFiltered}
 
                 onSaveProject={handleSaveProject}
                 onLoadProject={handleLoadProject}

@@ -23,7 +23,9 @@ interface SidebarProps {
     clusterAssignments: number[] | null;
     clusterNames: Record<number, string>;
     setClusterNames: (names: Record<number, string>) => void;
-    projectionData: number[][] | null;
+    projectionData: Record<string, number[]> | null;
+    isProjectionCalculationFiltered: boolean;
+    setIsProjectionCalculationFiltered: (filtered: boolean) => void;
     
     onSaveProject: () => void;
     onLoadProject: () => void;
@@ -52,6 +54,8 @@ const Sidebar: React.FC<SidebarProps> = ({
     clusterNames,
     setClusterNames,
     projectionData,
+    isProjectionCalculationFiltered,
+    setIsProjectionCalculationFiltered,
     onSaveProject,
     onLoadProject,
     onResetProject,
@@ -76,7 +80,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     };
 
     const handleCalculateK = async () => {
-        if (!projectionData) {
+        if (!projectionData || Object.keys(projectionData).length === 0) {
             alert(`${projectionMode.toUpperCase()} data not available. Please wait for the projection to be calculated.`);
             return;
         }
@@ -84,12 +88,14 @@ const Sidebar: React.FC<SidebarProps> = ({
         try {
             // Use a timeout to allow the loading state to render before blocking the main thread
             await new Promise(resolve => setTimeout(resolve, 50));
-            const maxK = Math.min(15, spaceData.styles.length - 1);
+            // FIX: Explicitly type `pointsForClustering` as `number[][]` to satisfy the type requirements of `findOptimalK`.
+            const pointsForClustering: number[][] = Object.values(projectionData);
+            const maxK = Math.min(15, pointsForClustering.length - 1);
             if (maxK < 2) {
                  alert("Not enough styles to calculate a cluster count.");
                  return;
             }
-            const suggestedK = await findOptimalK(projectionData, 2, maxK);
+            const suggestedK = await findOptimalK(pointsForClustering, 2, maxK);
             setClusterCount(suggestedK);
         } catch (error) {
             console.error("Failed to calculate K:", error);
@@ -111,6 +117,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             const clusterGroups: Record<number, { name: string, description: string, scores: Record<string, number | undefined> }[]> = {};
             spaceData.styles.forEach((style, index) => {
                 const clusterId = clusterAssignments[index];
+                if (clusterId === -1) return; // Ignore styles not in a cluster
                  const styleInfo = {
                     name: style.name,
                     description: style.description,
@@ -281,6 +288,18 @@ Based on the common themes, aesthetics, and scores, what is a fitting name for t
                             </div>
                         </details>
                         <div className="mt-3 pt-3 border-t border-gray-600 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <label htmlFor="filter-projection-calc" className="text-sm font-medium text-gray-400 cursor-pointer">Calculate on filtered styles</label>
+                                <button
+                                    id="filter-projection-calc"
+                                    onClick={() => setIsProjectionCalculationFiltered(!isProjectionCalculationFiltered)}
+                                    className={`relative inline-flex items-center h-6 rounded-full w-11 transition-colors ${isProjectionCalculationFiltered ? 'bg-blue-600' : 'bg-gray-600'}`}
+                                    aria-pressed={isProjectionCalculationFiltered}
+                                    title="If enabled, UMAP/PCA is calculated only using the styles that pass the active filters."
+                                >
+                                    <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform ${isProjectionCalculationFiltered ? 'translate-x-6' : 'translate-x-1'}`} />
+                                </button>
+                            </div>
                             <div className="flex items-center justify-between">
                                 <label htmlFor="enable-clustering" className="text-sm font-medium text-gray-400 cursor-pointer">Enable Clustering</label>
                                 <button
