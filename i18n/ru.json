@@ -112,7 +112,12 @@
     "cancelButton": "Отмена",
     "axisNameLabel": "Название оси",
     "descriptionLabel": "Описание",
-    "colorLabel": "Цвет"
+    "colorLabel": "Цвет",
+    "analyzeAndScoreButton": "Анализировать и оценить все стили с помощью ИИ",
+    "analyzingButton": "Анализ...",
+    "analyzeAndScoreTooltip": "Использовать ИИ для автоматической оценки всех стилей на основе названия и описания этой оси.",
+    "analysisSuccess": "Анализ завершен! Оценено стилей: {count}. Оценки будут применены при сохранении.",
+    "analysisError": "Ошибка анализа: {error}"
   },
   "scoringWizardModal": {
     "title": "Оценка стилей для \"{axisName}\"",

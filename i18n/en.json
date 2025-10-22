@@ -112,7 +112,12 @@
     "cancelButton": "Cancel",
     "axisNameLabel": "Axis Name",
     "descriptionLabel": "Description",
-    "colorLabel": "Color"
+    "colorLabel": "Color",
+    "analyzeAndScoreButton": "Analyze & Score All Styles with AI",
+    "analyzingButton": "Analyzing...",
+    "analyzeAndScoreTooltip": "Use AI to automatically score all styles based on this axis's name and description.",
+    "analysisSuccess": "Analysis complete! {count} styles scored. Scores will be applied when you save.",
+    "analysisError": "Analysis failed: {error}"
   },
   "scoringWizardModal": {
     "title": "Score Styles for \"{axisName}\"",

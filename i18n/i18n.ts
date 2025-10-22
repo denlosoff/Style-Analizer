@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useCallback, PropsWithChildren } from 'react';
 
 const en = {
@@ -68,7 +69,8 @@ const en = {
     "selectZAxisMessage": "Select a Z axis for 3D visualization.",
     "selectSourceAxesMessage": "Select source axes for {mode} projection.",
     "clusterLegendTitle": "Cluster Legend",
-    "clusterLabel": "Cluster {number}"
+    "clusterLabel": "Cluster {number}",
+    "stackTooltip": "Stack of {count} styles. Click to expand."
   },
   "styleEditorModal": {
     "createTitle": "Create Style",
@@ -114,7 +116,12 @@ const en = {
     "cancelButton": "Cancel",
     "axisNameLabel": "Axis Name",
     "descriptionLabel": "Description",
-    "colorLabel": "Color"
+    "colorLabel": "Color",
+    "analyzeAndScoreButton": "Analyze & Score All Styles with AI",
+    "analyzingButton": "Analyzing...",
+    "analyzeAndScoreTooltip": "Use AI to automatically score all styles based on this axis's name and description.",
+    "analysisSuccess": "Analysis complete! {count} styles scored. Scores will be applied when you save.",
+    "analysisError": "Analysis failed: {error}"
   },
   "scoringWizardModal": {
     "title": "Score Styles for \"{axisName}\"",
@@ -195,7 +202,8 @@ const ru = {
     "selectZAxisMessage": "Выберите ось Z для 3D-визуализации.",
     "selectSourceAxesMessage": "Выберите исходные оси для проекции {mode}.",
     "clusterLegendTitle": "Легенда кластеров",
-    "clusterLabel": "Кластер {number}"
+    "clusterLabel": "Кластер {number}",
+    "stackTooltip": "Стопка из {count} стилей. Нажмите, чтобы развернуть."
   },
   "styleEditorModal": {
     "createTitle": "Создать стиль",
@@ -241,7 +249,12 @@ const ru = {
     "cancelButton": "Отмена",
     "axisNameLabel": "Название оси",
     "descriptionLabel": "Описание",
-    "colorLabel": "Цвет"
+    "colorLabel": "Цвет",
+    "analyzeAndScoreButton": "перераспределить все стили по оси",
+    "analyzingButton": "Анализ...",
+    "analyzeAndScoreTooltip": "Использовать ИИ для автоматической оценки всех стилей на основе названия и описания этой оси.",
+    "analysisSuccess": "Анализ завершен! Оценено стилей: {count}. Оценки будут применены при сохранении.",
+    "analysisError": "Ошибка анализа: {error}"
   },
   "scoringWizardModal": {
     "title": "Оценка стилей для \"{axisName}\"",
