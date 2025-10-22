@@ -18,3 +18,5 @@ export interface SpaceData {
     axes: Axis[];
     styles: Style[];
 }
+
+export type ProjectionMode = 'manual' | 'umap';

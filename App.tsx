@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { GoogleGenAI } from '@google/genai';
-import type { SpaceData, Style, Axis } from './types';
+import type { SpaceData, Style, Axis, ProjectionMode } from './types';
 import { INITIAL_DATA } from './constants';
 import Sidebar from './components/Sidebar';
 import Visualization from './components/Visualization';
@@ -21,6 +21,10 @@ const App: React.FC = () => {
     const [dimension, setDimension] = useState<1 | 2 | 3>(2);
     const [activeAxisIds, setActiveAxisIds] = useState<(string | null)[]>([null, null, null]);
     
+    // Visualization modes
+    const [projectionMode, setProjectionMode] = useState<ProjectionMode>('manual');
+    const [umapAxisIds, setUmapAxisIds] = useState<string[]>([]);
+
     const [selectedStyleId, setSelectedStyleId] = useState<string | null>(null);
 
     // Modal States
@@ -34,6 +38,11 @@ const App: React.FC = () => {
 
     const [viewingImages, setViewingImages] = useState<{ images: string[], initialIndex: number } | null>(null);
     
+    // Generation states
+    const [isGenerationPaused, setIsGenerationPaused] = useState<boolean>(false);
+    const [isResuming, setIsResuming] = useState<boolean>(false);
+    const [resumeStatus, setResumeStatus] = useState<string | null>(null);
+
     const updateSpaceData = useCallback(async (data: SpaceData | null) => {
         setSpaceData(data);
         if (data) {
@@ -52,6 +61,10 @@ const App: React.FC = () => {
                 const savedData = await getSpaceDataFromDB();
                 if (savedData) {
                     setSpaceData(savedData);
+                    const hasMissingImages = savedData.styles.some(s => s.images.length === 0);
+                    if (hasMissingImages) {
+                        setIsGenerationPaused(true);
+                    }
                     setIsLoading(false);
                     return;
                 }
@@ -69,12 +82,13 @@ const App: React.FC = () => {
                 }
 
                 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-                const newStyles: Style[] = [];
-                const totalStyles = INITIAL_DATA.styles.length;
+                const initialStyles = [...INITIAL_DATA.styles];
+                const processedStyles: Style[] = [];
+                let generationFailed = false;
 
-                for (let i = 0; i < totalStyles; i++) {
-                    const style = INITIAL_DATA.styles[i];
-                    setLoadingMessage(`Generating image ${i + 1} of ${totalStyles}: ${style.name}`);
+                for (let i = 0; i < initialStyles.length; i++) {
+                    const style = initialStyles[i];
+                    setLoadingMessage(`Generating image ${i + 1} of ${initialStyles.length}: ${style.name}`);
                     try {
                         const prompt = `A high-quality, artistic photograph of a single cup in the style of '${style.name}'. Style description: ${style.description}`;
                         const response = await ai.models.generateImages({
@@ -86,20 +100,30 @@ const App: React.FC = () => {
                         if (response.generatedImages && response.generatedImages.length > 0) {
                             const base64ImageBytes = response.generatedImages[0].image.imageBytes;
                             const imageUrl = `data:image/png;base64,${base64ImageBytes}`;
-                            newStyles.push({ ...style, images: [imageUrl], coverImageIndex: 0 });
+                            processedStyles.push({ ...style, images: [imageUrl], coverImageIndex: 0 });
                         } else {
                              console.warn(`Image generation skipped for ${style.name}: No image returned.`);
-                            newStyles.push({ ...style, images: [] });
+                            processedStyles.push({ ...style, images: [] });
                         }
                     } catch (error) {
-                        console.error(`Failed to generate image for ${style.name}:`, error);
-                        newStyles.push({ ...style, images: [] }); // Add style even if image gen fails
+                        console.error(`Failed to generate image for ${style.name}, pausing generation:`, error);
+                        processedStyles.push({ ...style, images: [] }); // Add the failed one without image
+                        setIsGenerationPaused(true);
+                        generationFailed = true;
+                        break; // Exit the loop
                     }
                     // Add a delay to avoid hitting API rate limits
                     await new Promise(resolve => setTimeout(resolve, 1100));
                 }
 
-                const newSpaceData = { ...INITIAL_DATA, axes: INITIAL_DATA.axes, styles: newStyles };
+                let finalStyles = processedStyles;
+                if (generationFailed) {
+                    // If we broke out, add the remaining unprocessed styles
+                    const remainingStyles = INITIAL_DATA.styles.slice(processedStyles.length).map(s => ({ ...s, images: [] }));
+                    finalStyles = [...processedStyles, ...remainingStyles];
+                }
+
+                const newSpaceData = { ...INITIAL_DATA, axes: INITIAL_DATA.axes, styles: finalStyles };
                 await updateSpaceData(newSpaceData);
 
             } catch (error) {
@@ -126,6 +150,8 @@ const App: React.FC = () => {
                 spaceData.axes[1]?.id || null,
                 spaceData.axes[2]?.id || null,
             ]);
+            // When data loads, initialize UMAP axes to all available axes
+            setUmapAxisIds(spaceData.axes.map(a => a.id));
         }
     }, [spaceData]);
 
@@ -159,6 +185,7 @@ const App: React.FC = () => {
         } else {
             isNew = true;
             newSpaceData = { ...spaceData, axes: [...spaceData.axes, axisToSave] };
+            setUmapAxisIds(prev => [...prev, axisToSave.id]); // Also add to UMAP selection
         }
         updateSpaceData(newSpaceData);
         
@@ -180,6 +207,7 @@ const App: React.FC = () => {
         const newSpaceData = { axes: newAxes, styles: newStyles };
         updateSpaceData(newSpaceData);
         setActiveAxisIds(prev => prev.map(id => id === axisId ? null : id));
+        setUmapAxisIds(prev => prev.filter(id => id !== axisId));
     };
 
     const handleScoringWizardComplete = (updatedStyles: Style[]) => {
@@ -252,6 +280,84 @@ const App: React.FC = () => {
     const handlePointDoubleClick = useCallback((styleId: string) => {
         openStyleModal(styleId);
     }, [openStyleModal]);
+
+    const handleResumeGeneration = useCallback(async () => {
+        if (!spaceData || isResuming) return;
+    
+        setIsResuming(true);
+        setResumeStatus('Starting generation...');
+        
+        const stylesToUpdate = spaceData.styles.filter(s => s.images.length === 0);
+        if (stylesToUpdate.length === 0) {
+            setIsResuming(false);
+            setIsGenerationPaused(false);
+            setResumeStatus('All images already generated.');
+            setTimeout(() => setResumeStatus(null), 3000);
+            return;
+        }
+    
+        try {
+            if (!process.env.API_KEY) {
+                throw new Error("API_KEY not found.");
+            }
+            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+            let failedAgain = false;
+    
+            for (let i = 0; i < stylesToUpdate.length; i++) {
+                const styleToUpdate = stylesToUpdate[i];
+                setResumeStatus(`Generating for ${styleToUpdate.name} (${i + 1}/${stylesToUpdate.length})`);
+                
+                try {
+                    const prompt = `A high-quality, artistic photograph of a single cup in the style of '${styleToUpdate.name}'. Style description: ${styleToUpdate.description}`;
+                    const response = await ai.models.generateImages({
+                        model: 'imagen-4.0-generate-001',
+                        prompt: prompt,
+                        config: { numberOfImages: 1, outputMimeType: 'image/png', aspectRatio: '1:1' }
+                    });
+    
+                    if (response.generatedImages && response.generatedImages.length > 0) {
+                        const base64ImageBytes = response.generatedImages[0].image.imageBytes;
+                        const imageUrl = `data:image/png;base64,${base64ImageBytes}`;
+                        
+                        setSpaceData(prevData => {
+                            if (!prevData) return null;
+                            const updatedStyles = prevData.styles.map(s => 
+                                s.id === styleToUpdate.id 
+                                    ? { ...s, images: [imageUrl], coverImageIndex: 0 } 
+                                    : s
+                            );
+                            const newData = { ...prevData, styles: updatedStyles };
+                            setSpaceDataInDB(newData).catch(e => console.error("DB update failed during resume:", e));
+                            return newData;
+                        });
+                    } else {
+                         console.warn(`Image generation skipped for ${styleToUpdate.name}: No image returned.`);
+                    }
+                } catch (error) {
+                    console.error(`Failed to generate image for ${styleToUpdate.name}, pausing again:`, error);
+                    failedAgain = true;
+                    break; 
+                }
+                await new Promise(resolve => setTimeout(resolve, 1100)); // Rate limit
+            }
+            
+            if (failedAgain) {
+                setIsGenerationPaused(true);
+                setResumeStatus(`Generation paused. Try again later.`);
+            } else {
+                setIsGenerationPaused(false);
+                setResumeStatus(`Generation complete!`);
+                setTimeout(() => setResumeStatus(null), 5000);
+            }
+    
+        } catch (error) {
+            console.error("An unexpected error occurred during resume:", error);
+            setIsGenerationPaused(true);
+            setResumeStatus(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        } finally {
+            setIsResuming(false);
+        }
+    }, [spaceData, isResuming]);
     
     if (isLoading || !spaceData) {
         return (
@@ -270,8 +376,12 @@ const App: React.FC = () => {
                 spaceData={spaceData}
                 dimension={dimension}
                 setDimension={setDimension}
+                projectionMode={projectionMode}
+                setProjectionMode={setProjectionMode}
                 activeAxisIds={activeAxisIds}
                 setActiveAxisIds={setActiveAxisIds}
+                umapAxisIds={umapAxisIds}
+                setUmapAxisIds={setUmapAxisIds}
                 selectedStyleId={selectedStyleId}
                 onOpenStyleModal={openStyleModal}
                 onOpenAxisModal={openAxisModal}
@@ -281,12 +391,18 @@ const App: React.FC = () => {
                 onLoadProject={handleLoadProject}
                 onResetProject={handleResetProject}
                 setSelectedStyleId={setSelectedStyleId}
+                isGenerationPaused={isGenerationPaused}
+                isResuming={isResuming}
+                resumeStatus={resumeStatus}
+                onResumeGeneration={handleResumeGeneration}
             />
             <main className="flex-1 flex flex-col p-4 bg-black">
                 <Visualization
                     spaceData={spaceData}
                     dimension={dimension}
+                    projectionMode={projectionMode}
                     activeAxisIds={activeAxisIds.slice(0, dimension).filter((id): id is string => id !== null)}
+                    umapAxisIds={umapAxisIds}
                     selectedStyleId={selectedStyleId}
                     onPointClick={handlePointClick}
                     onPointDoubleClick={handlePointDoubleClick}
