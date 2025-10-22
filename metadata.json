@@ -1,0 +1,5 @@
+{
+  "name": "Style Space Visualizer",
+  "description": "An interactive application to visualize and analyze styles in 1D and 2D spaces. Users can define custom criteria (axes), score styles against them, and explore the resulting data points in an interactive scatter plot, including a PCA projection mode.",
+  "requestFramePermissions": []
+}
