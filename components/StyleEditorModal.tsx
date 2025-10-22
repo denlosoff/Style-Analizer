@@ -3,7 +3,8 @@ import { GoogleGenAI } from '@google/genai';
 import type { Style, Axis } from '../types';
 import Modal from './common/Modal';
 import { AXIS_SCORE_MIN, AXIS_SCORE_MAX } from '../constants';
-import { PlusIcon, TrashIcon, SparklesIcon, StarIcon } from './icons';
+import { PlusIcon, TrashIcon, SparklesIcon, StarIcon, RefreshCwIcon } from './icons';
+import { fetchImageAsBase64 } from '../utils/imageUtils';
 
 interface StyleEditorModalProps {
     style: Style;
@@ -13,72 +14,27 @@ interface StyleEditorModalProps {
     onViewImages: (images: string[], startIndex: number) => void;
 }
 
-// Helper function to fetch an image URL and convert it to a base64 string
-async function imageUrlToBase64(url: string): Promise<{ data: string; mimeType: string }> {
-    // Handle data URLs directly
-    if (url.startsWith('data:image')) {
-        try {
-            const parts = url.split(',');
-            const mimeTypePart = parts[0].split(':')[1].split(';')[0];
-            const data = parts[1];
-            if (!mimeTypePart || !data) {
-                throw new Error('Invalid data URL format.');
-            }
-            return { data, mimeType: mimeTypePart };
-        } catch (error) {
-            console.error('Error parsing data URL:', url, error);
-            throw new Error(`Failed to parse data URL: ${url.substring(0, 50)}...`);
-        }
+/**
+ * Parses a data URL string into its constituent parts.
+ * @param dataUrl The full data URL (e.g., "data:image/png;base64,aabbcc...").
+ * @returns An object containing the base64 data and the MIME type.
+ */
+function parseDataUrl(dataUrl: string): { data: string; mimeType: string } {
+    const parts = dataUrl.split(',');
+    const mimeTypePart = parts[0]?.split(':')[1]?.split(';')[0];
+    const data = parts[1];
+    if (!mimeTypePart || !data) {
+        console.error('Invalid data URL:', dataUrl.substring(0, 50) + '...');
+        throw new Error('Invalid data URL format.');
     }
-
-    const blobToBase64 = (blob: Blob): Promise<{ data: string, mimeType: string }> => {
-        const mimeType = blob.type;
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                const base64data = reader.result as string;
-                const base64String = base64data.split(',')[1];
-                if (!base64String) {
-                    reject(new Error('Failed to extract base64 data from data URL.'));
-                    return;
-                }
-                resolve({ data: base64String, mimeType });
-            };
-            reader.onerror = (error) => reject(error);
-            reader.readAsDataURL(blob);
-        });
-    };
-
-    // Use a proxy to bypass potential CORS issues
-    const proxyUrl = `https://cors-anywhere.herokuapp.com/${url}`;
-    try {
-        const response = await fetch(proxyUrl);
-        if (!response.ok) {
-            throw new Error(`Proxy fetch failed with status: ${response.status}`);
-        }
-        const blob = await response.blob();
-        return await blobToBase64(blob);
-    } catch (error) {
-         console.error(`CORS or fetch error for ${url} via proxy. Trying direct fetch.`, error);
-         // Fallback to direct fetch if proxy fails
-         try {
-            const directResponse = await fetch(url);
-            if (!directResponse.ok) {
-                throw new Error(`Direct fetch failed with status: ${directResponse.status}`);
-            }
-            const blob = await directResponse.blob();
-            return await blobToBase64(blob);
-        } catch (directFetchError) {
-             console.error(`Direct fetch for ${url} also failed.`, directFetchError);
-             throw new Error(`Could not fetch image from URL: ${url}`);
-        }
-    }
+    return { data, mimeType: mimeTypePart };
 }
 
 
 const StyleEditorModal: React.FC<StyleEditorModalProps> = ({ style, axes, onSave, onClose, onViewImages }) => {
     const [formData, setFormData] = useState<Style>(style);
     const [newImageUrl, setNewImageUrl] = useState('');
+    const [imageAddStatus, setImageAddStatus] = useState({ loading: false, error: null as string | null });
     const [isGeneratingImage, setIsGeneratingImage] = useState(false);
     const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
     const [generationError, setGenerationError] = useState<string | null>(null);
@@ -101,10 +57,21 @@ const StyleEditorModal: React.FC<StyleEditorModalProps> = ({ style, axes, onSave
         setFormData(prev => ({ ...prev, scores: newScores }));
     };
     
-    const handleAddImage = () => {
-        if (newImageUrl && !formData.images.includes(newImageUrl)) {
-            setFormData(prev => ({...prev, images: [...prev.images, newImageUrl]}));
+    const handleAddImage = async () => {
+        if (!newImageUrl) return;
+        
+        setImageAddStatus({ loading: true, error: null });
+        try {
+            const base64Url = await fetchImageAsBase64(newImageUrl);
+            if (formData.images.includes(base64Url)) {
+                 throw new Error("This image has already been added.");
+            }
+            setFormData(prev => ({...prev, images: [...prev.images, base64Url]}));
             setNewImageUrl('');
+        } catch (error) {
+            setImageAddStatus({ loading: false, error: error instanceof Error ? error.message : 'An unknown error occurred.' });
+        } finally {
+            setImageAddStatus(prev => ({ ...prev, loading: false }));
         }
     }
     
@@ -143,18 +110,15 @@ const StyleEditorModal: React.FC<StyleEditorModalProps> = ({ style, axes, onSave
             const imageParts: { inlineData: { data: string; mimeType: string; } }[] = [];
 
             if (formData.images.length > 0) {
-                const imagePromises = formData.images.slice(0, 5).map(async (url) => { // Limit to 5 images
+                const successfulParts = formData.images.slice(0, 5).map(url => { // Limit to 5 images
                     try {
-                        const { data, mimeType } = await imageUrlToBase64(url);
-                        return { inlineData: { data, mimeType } };
+                        return { inlineData: parseDataUrl(url) };
                     } catch (e) {
-                        console.warn(`Could not process image URL ${url}:`, e);
-                        setGenerationError(`Could not fetch reference image from ${url}. It might be protected by CORS policy.`);
+                        console.warn(`Could not process data URL for AI:`, e);
+                        setGenerationError(`Could not process a local image. It might be corrupted.`);
                         return null;
                     }
-                });
-                const resolvedImageParts = await Promise.all(imagePromises);
-                const successfulParts = resolvedImageParts.filter((p): p is { inlineData: { data: string; mimeType: string; } } => p !== null);
+                }).filter((p): p is { inlineData: { data: string; mimeType: string; } } => p !== null);
                 imageParts.push(...successfulParts);
             }
             
@@ -309,15 +273,27 @@ const StyleEditorModal: React.FC<StyleEditorModalProps> = ({ style, axes, onSave
                 {/* --- GALLERY SECTION --- */}
                 <fieldset className="space-y-4">
                      <legend className="text-xl font-semibold">3. Manage Gallery</legend>
-                     <div className="flex space-x-2">
-                        <input
-                            type="text"
-                            placeholder="Add reference image URL..."
-                            value={newImageUrl}
-                            onChange={(e) => setNewImageUrl(e.target.value)}
-                            className="flex-1 bg-gray-700 border border-gray-600 rounded-md p-2"
-                        />
-                        <button type="button" onClick={handleAddImage} title="Add image from URL" className="px-3 py-2 rounded-md bg-blue-600 hover:bg-blue-700"><PlusIcon /></button>
+                     <div>
+                        <div className="flex space-x-2">
+                            <input
+                                type="text"
+                                placeholder="Add reference image URL..."
+                                value={newImageUrl}
+                                onChange={(e) => setNewImageUrl(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && handleAddImage()}
+                                className="flex-1 bg-gray-700 border border-gray-600 rounded-md p-2"
+                            />
+                            <button 
+                                type="button" 
+                                onClick={handleAddImage} 
+                                disabled={imageAddStatus.loading}
+                                title="Add image from URL" 
+                                className="px-3 py-2 rounded-md bg-blue-600 hover:bg-blue-700 flex items-center justify-center disabled:bg-gray-500"
+                            >
+                                {imageAddStatus.loading ? <RefreshCwIcon className="animate-spin" /> : <PlusIcon />}
+                            </button>
+                        </div>
+                        {imageAddStatus.error && <p className="text-red-400 text-sm mt-1">{imageAddStatus.error}</p>}
                     </div>
                     <div>
                         <button 
