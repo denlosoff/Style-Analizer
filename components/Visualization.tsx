@@ -7,18 +7,17 @@ interface VisualizationProps {
     spaceData: SpaceData;
     projectionMode: ProjectionMode;
     activeAxisIds: string[];
-    umapAxisIds: string[];
-    isUmapClusteringEnabled: boolean;
-    umapClusterCount: number;
+    isClusteringEnabled: boolean;
     clusterAssignments: number[] | null;
-    umapClusterNames: Record<number, string>;
-    umapData: number[][] | null;
-    isCalculatingUmap: boolean;
-    umapError: string | null;
+    clusterNames: Record<number, string>;
+    projectionData: number[][] | null;
+    isCalculatingProjection: boolean;
+    projectionError: string | null;
     selectedStyleId: string | null;
     dimension: 1 | 2 | 3;
     onPointClick: (styleId: string) => void;
     onPointDoubleClick: (styleId:string) => void;
+    filteredStyleIds: string[];
 }
 
 const margin = { top: 40, right: 40, bottom: 60, left: 60 };
@@ -30,16 +29,17 @@ const Visualization: React.FC<VisualizationProps> = ({
     spaceData,
     projectionMode,
     activeAxisIds,
-    isUmapClusteringEnabled,
+    isClusteringEnabled,
     clusterAssignments,
-    umapClusterNames,
-    umapData,
-    isCalculatingUmap,
-    umapError,
+    clusterNames,
+    projectionData,
+    isCalculatingProjection,
+    projectionError,
     selectedStyleId,
     dimension,
     onPointClick,
     onPointDoubleClick,
+    filteredStyleIds,
 }) => {
     const svgRef = useRef<SVGSVGElement | null>(null);
     const containerRef = useRef<HTMLDivElement | null>(null);
@@ -72,12 +72,12 @@ const Visualization: React.FC<VisualizationProps> = ({
                 .text(message);
         }
 
-        if (isCalculatingUmap) {
-            renderMessage('Calculating UMAP projection...');
+        if (isCalculatingProjection) {
+            renderMessage(`Calculating ${projectionMode.toUpperCase()} projection...`);
             return;
         }
-        if (umapError) {
-            renderMessage(umapError);
+        if (projectionError) {
+            renderMessage(projectionError);
             return;
         }
         
@@ -97,14 +97,14 @@ const Visualization: React.FC<VisualizationProps> = ({
             }
         }
         
-        // UMAP Mode Prereq Check
-        if (projectionMode === 'umap' && !umapData) {
-            renderMessage('Select source axes for UMAP projection.');
+        // Projection Mode Prereq Check
+        if (projectionMode !== 'manual' && !projectionData) {
+            renderMessage(`Select source axes for ${projectionMode.toUpperCase()} projection.`);
             return;
         }
 
         if (dimension < 3) {
-            let pointsData, xScale, yScale, xAxisLabel, yAxisLabel;
+            let allPointsData, xScale, yScale, xAxisLabel, yAxisLabel;
             
             if (projectionMode === 'manual') {
                 const activeAxes = activeAxisIds.map(id => spaceData.axes.find(a => a.id === id)).filter((a): a is Axis => !!a);
@@ -116,32 +116,35 @@ const Visualization: React.FC<VisualizationProps> = ({
                     ? d3.scaleLinear().domain([AXIS_SCORE_MIN - 0.5, AXIS_SCORE_MAX + 0.5]).range([innerHeight, 0])
                     : d3.scaleLinear().domain([-1, 1]).range([innerHeight / 2, innerHeight / 2]);
 
-                pointsData = spaceData.styles.map(style => ({
+                allPointsData = spaceData.styles.map(style => ({
                     id: style.id, name: style.name,
                     x: style.scores[activeAxisIds[0]!] ?? MIDPOINT_SCORE,
                     y: dimension === 2 ? (style.scores[activeAxisIds[1]!] ?? MIDPOINT_SCORE) : 0,
                     isScored: style.scores[activeAxisIds[0]!] !== undefined && (dimension === 1 || style.scores[activeAxisIds[1]!] !== undefined),
                     coverImageUrl: style.images[style.coverImageIndex ?? 0] || FALLBACK_IMAGE_URL,
                 }));
-            } else { // UMAP 1D/2D
-                xAxisLabel = 'UMAP 1';
-                yAxisLabel = 'UMAP 2';
-                const xExtent = d3.extent(umapData!, d => d[0]) as [number, number];
-                const yExtent = dimension === 2 ? d3.extent(umapData!, d => d[1]) as [number, number] : [-1, 1];
+            } else { // UMAP or PCA 1D/2D
+                xAxisLabel = `${projectionMode.toUpperCase()} 1`;
+                yAxisLabel = `${projectionMode.toUpperCase()} 2`;
+                
+                allPointsData = spaceData.styles.map((style, i) => ({
+                    id: style.id, name: style.name,
+                    x: projectionData![i][0],
+                    y: dimension === 2 ? projectionData![i][1] : 0,
+                    isScored: true, // always scored for projection
+                    coverImageUrl: style.images[style.coverImageIndex ?? 0] || FALLBACK_IMAGE_URL,
+                }));
+                
+                const xExtent = d3.extent(allPointsData, d => d.x) as [number, number];
+                const yExtent = dimension === 2 ? d3.extent(allPointsData, d => d.y) as [number, number] : [-1, 1];
                 
                 xScale = d3.scaleLinear().domain([xExtent[0] - (xExtent[1]-xExtent[0])*0.1, xExtent[1] + (xExtent[1]-xExtent[0])*0.1]).range([0, innerWidth]);
                 yScale = dimension === 2 
                     ? d3.scaleLinear().domain([yExtent[0] - (yExtent[1]-yExtent[0])*0.1, yExtent[1] + (yExtent[1]-yExtent[0])*0.1]).range([innerHeight, 0])
                     : d3.scaleLinear().domain([-1, 1]).range([innerHeight / 2, innerHeight / 2]);
-                
-                pointsData = spaceData.styles.map((style, i) => ({
-                    id: style.id, name: style.name,
-                    x: umapData![i][0],
-                    y: dimension === 2 ? umapData![i][1] : 0,
-                    isScored: true, // always scored for UMAP
-                    coverImageUrl: style.images[style.coverImageIndex ?? 0] || FALLBACK_IMAGE_URL,
-                }));
             }
+            
+            const visiblePointsData = allPointsData.filter(p => filteredStyleIds.includes(p.id));
 
             const xAxis = d3.axisBottom(xScale);
             g.append('g')
@@ -164,7 +167,7 @@ const Visualization: React.FC<VisualizationProps> = ({
             g.append('defs').append('clipPath').attr('id', 'point-clip')
                 .append('circle').attr('cx', 15).attr('cy', 15).attr('r', 15);
 
-            const groups = g.selectAll('g.point').data(pointsData, (d: any) => d.id).join('g')
+            const groups = g.selectAll('g.point').data(visiblePointsData, (d: any) => d.id).join('g')
                 .attr('class', 'point')
                 .attr('transform', d => `translate(${xScale(d.x) - halfPointSize(d.id)}, ${yScale(d.y) - halfPointSize(d.id)})`)
                 .style('cursor', 'pointer')
@@ -177,7 +180,12 @@ const Visualization: React.FC<VisualizationProps> = ({
                 .attr('cy', d => halfPointSize(d.id))
                 .attr('r', d => halfPointSize(d.id) + 5)
                 .attr('fill', 'none')
-                .attr('stroke', (d, i) => clusterAssignments ? clusterColors(clusterAssignments[i].toString()) : 'transparent')
+                .attr('stroke', d => {
+                    if (!clusterAssignments) return 'transparent';
+                    const originalIndex = spaceData.styles.findIndex(s => s.id === d.id);
+                    if (originalIndex === -1) return 'transparent';
+                    return clusterColors(clusterAssignments[originalIndex].toString());
+                })
                 .attr('stroke-width', 3);
 
             groups.append('image').attr('href', d => d.coverImageUrl).attr('width', d => pointSize(d.id)).attr('height', d => pointSize(d.id))
@@ -186,7 +194,7 @@ const Visualization: React.FC<VisualizationProps> = ({
             groups.append('circle').attr('cx', d => halfPointSize(d.id)).attr('cy', d => halfPointSize(d.id)).attr('r', d => halfPointSize(d.id) + 2)
                 .attr('fill', 'none').attr('stroke', d => selectedStyleId === d.id ? 'white' : 'transparent').attr('stroke-width', 3);
             
-            g.selectAll('text.label').data(pointsData, (d: any) => d.id).join('text')
+            g.selectAll('text.label').data(visiblePointsData, (d: any) => d.id).join('text')
                 .attr('class', 'label').attr('x', d => xScale(d.x)).attr('y', d => yScale(d.y) - halfPointSize(d.id) - 8)
                 .attr('text-anchor', 'middle').attr('fill', 'white').style('font-size', '12px')
                 .style('pointer-events', 'none').text(d => d.name);
@@ -203,14 +211,14 @@ const Visualization: React.FC<VisualizationProps> = ({
             const center = { x: innerWidth / 2, y: innerHeight / 2 };
             
             let axesData: AxisElementData[];
-            let pointsData: PointElementData[];
+            let allPointsData: PointElementData[];
 
             if (projectionMode === 'manual') {
                 const normalizeScore = (score: number | undefined) => {
                     const s = score === undefined ? MIDPOINT_SCORE : score;
                     return ((s - AXIS_SCORE_MIN) / (AXIS_SCORE_MAX - AXIS_SCORE_MIN) - 0.5) * 2;
                 };
-                 pointsData = spaceData.styles.map(style => ({
+                 allPointsData = spaceData.styles.map(style => ({
                     id: style.id, name: style.name, type: 'point',
                     coverImageUrl: style.images[style.coverImageIndex ?? 0] || FALLBACK_IMAGE_URL,
                     isScored: activeAxisIds.every(id => id && style.scores[id] !== undefined),
@@ -225,25 +233,26 @@ const Visualization: React.FC<VisualizationProps> = ({
                     { id: 'y-axis', type: 'axis', label: spaceData.axes.find(a => a.id === activeAxisIds[1])?.name, start: {x: 0, y: -1, z: 0}, end: {x: 0, y: 1, z: 0}, color: '#77FF77' },
                     { id: 'z-axis', type: 'axis', label: spaceData.axes.find(a => a.id === activeAxisIds[2])?.name, start: {x: 0, y: 0, z: -1}, end: {x: 0, y: 0, z: 1}, color: '#7777FF' },
                 ];
-            } else { // UMAP 3D
+            } else { // UMAP or PCA 3D
                 const extents = [
-                    d3.extent(umapData!, d => d[0]),
-                    d3.extent(umapData!, d => d[1]),
-                    d3.extent(umapData!, d => d[2]),
+                    d3.extent(projectionData!, d => d[0]),
+                    d3.extent(projectionData!, d => d[1]),
+                    d3.extent(projectionData!, d => d[2]),
                 ];
                 const scales = extents.map(e => d3.scaleLinear().domain(e!).range([-1, 1]));
-                pointsData = spaceData.styles.map((style, i) => ({
+                allPointsData = spaceData.styles.map((style, i) => ({
                      id: style.id, name: style.name, type: 'point',
                     coverImageUrl: style.images[style.coverImageIndex ?? 0] || FALLBACK_IMAGE_URL,
                     isScored: true,
-                    data: { x: scales[0](umapData![i][0]), y: scales[1](umapData![i][1]), z: scales[2](umapData![i][2]) }
+                    data: { x: scales[0](projectionData![i][0]), y: scales[1](projectionData![i][1]), z: scales[2](projectionData![i][2]) }
                 }));
                 axesData = [
-                    { id: 'x-axis', type: 'axis', label: "UMAP 1", start: {x: -1, y: 0, z: 0}, end: {x: 1, y: 0, z: 0}, color: '#FF7777' },
-                    { id: 'y-axis', type: 'axis', label: "UMAP 2", start: {x: 0, y: -1, z: 0}, end: {x: 0, y: 1, z: 0}, color: '#77FF77' },
-                    { id: 'z-axis', type: 'axis', label: "UMAP 3", start: {x: 0, y: 0, z: -1}, end: {x: 0, y: 0, z: 1}, color: '#7777FF' },
+                    { id: 'x-axis', type: 'axis', label: `${projectionMode.toUpperCase()} 1`, start: {x: -1, y: 0, z: 0}, end: {x: 1, y: 0, z: 0}, color: '#FF7777' },
+                    { id: 'y-axis', type: 'axis', label: `${projectionMode.toUpperCase()} 2`, start: {x: 0, y: -1, z: 0}, end: {x: 0, y: 1, z: 0}, color: '#77FF77' },
+                    { id: 'z-axis', type: 'axis', label: `${projectionMode.toUpperCase()} 3`, start: {x: 0, y: 0, z: -1}, end: {x: 0, y: 0, z: 1}, color: '#7777FF' },
                 ];
             }
+            const visiblePointsData = allPointsData.filter(p => filteredStyleIds.includes(p.id));
 
             const sinX = Math.sin(rotation.x * Math.PI / 180), cosX = Math.cos(rotation.x * Math.PI / 180);
             const sinY = Math.sin(rotation.y * Math.PI / 180), cosY = Math.cos(rotation.y * Math.PI / 180);
@@ -254,7 +263,7 @@ const Visualization: React.FC<VisualizationProps> = ({
                 return { x: x2 * scale3D + center.x, y: y1 * scale3D + center.y, z: z2 };
             };
             
-            const elements: ProjectedElement[] = ([...pointsData, ...axesData] as (PointElementData | AxisElementData)[]).map(el => {
+            const elements: ProjectedElement[] = ([...visiblePointsData, ...axesData] as (PointElementData | AxisElementData)[]).map(el => {
                 if (el.type === 'point') return { ...el, ...project(el.data) };
                 const pStart = project(el.start), pEnd = project(el.end);
                 return { ...el, x1: pStart.x, y1: pStart.y, z1: pStart.z, x2: pEnd.x, y2: pEnd.y, z2: pEnd.z, z: (pStart.z + pEnd.z) / 2 };
@@ -300,23 +309,22 @@ const Visualization: React.FC<VisualizationProps> = ({
             const drag = d3.drag().on('drag', (event) => setRotation(current => ({ y: current.y + event.dx * 0.5, x: current.x - event.dy * 0.5 })));
             svg.call(drag as any);
         }
-    }, [spaceData, activeAxisIds, selectedStyleId, onPointClick, onPointDoubleClick, dimension, rotation, projectionMode, umapData, isCalculatingUmap, umapError, clusterAssignments, clusterColors, umapClusterNames]);
+    }, [spaceData, activeAxisIds, selectedStyleId, onPointClick, onPointDoubleClick, dimension, rotation, projectionMode, projectionData, isCalculatingProjection, projectionError, clusterAssignments, clusterColors, clusterNames, isClusteringEnabled, filteredStyleIds]);
 
     return (
         <div ref={containerRef} className="w-full h-full cursor-grab active:cursor-grabbing relative">
             <svg ref={svgRef}></svg>
-            {isUmapClusteringEnabled && clusterAssignments && (
+            {isClusteringEnabled && clusterAssignments && (
                 <div className="absolute bottom-4 left-4 bg-gray-800 bg-opacity-80 p-3 rounded-lg text-white text-sm max-w-xs pointer-events-auto">
                     <h4 className="font-bold mb-2">Cluster Legend</h4>
                     <ul className="space-y-1">
-                        {/* FIX: Explicitly type the array from the Set to ensure correct type inference for sort and map. */}
                         {Array.from<number>(new Set(clusterAssignments)).sort((a,b) => a - b).map(clusterId => (
                             <li key={clusterId} className="flex items-center">
                                 <span 
                                     className="w-4 h-4 rounded-full mr-2 border border-white/50 flex-shrink-0"
                                     style={{ backgroundColor: clusterColors(clusterId.toString()) }}
                                 ></span>
-                                <span>{umapClusterNames[clusterId] || `Cluster ${clusterId + 1}`}</span>
+                                <span>{clusterNames[clusterId] || `Cluster ${clusterId + 1}`}</span>
                             </li>
                         ))}
                     </ul>

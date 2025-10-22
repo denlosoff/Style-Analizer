@@ -19,4 +19,11 @@ export interface SpaceData {
     styles: Style[];
 }
 
-export type ProjectionMode = 'manual' | 'umap';
+export type ProjectionMode = 'manual' | 'umap' | 'pca';
+
+export interface Filter {
+    id: string;
+    axisId: string;
+    min: number;
+    max: number;
+}

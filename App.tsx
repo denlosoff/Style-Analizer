@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { GoogleGenAI } from '@google/genai';
 import { UMAP } from 'umap-js';
-import type { SpaceData, Style, Axis, ProjectionMode } from './types';
+import type { SpaceData, Style, Axis, ProjectionMode, Filter } from './types';
 import { INITIAL_DATA, AXIS_SCORE_MIN, AXIS_SCORE_MAX } from './constants';
 import Sidebar from './components/Sidebar';
 import Visualization from './components/Visualization';
@@ -12,10 +12,173 @@ import ScoringWizardModal from './components/ScoringWizardModal';
 import ImageViewerModal from './components/ImageViewerModal';
 import { downloadJson, uploadJson } from './utils/fileUtils';
 import { getSpaceDataFromDB, setSpaceDataInDB, clearSpaceDataFromDB } from './utils/dbUtils';
-import { SparklesIcon } from './components/icons';
+import { SparklesIcon, PlusIcon, TrashIcon, EditIcon } from './components/icons';
 import { kmeans } from './utils/clustering';
+import { pca } from './utils/pca';
 
 const MIDPOINT_SCORE = (AXIS_SCORE_MAX + AXIS_SCORE_MIN) / 2;
+
+interface RightSidebarProps {
+    spaceData: SpaceData;
+    selectedStyleId: string | null;
+    setSelectedStyleId: (id: string | null) => void;
+    onOpenStyleModal: (styleId: string | null) => void;
+    onOpenAxisModal: (axisId: string | null) => void;
+    onDeleteStyle: (styleId: string) => void;
+    onDeleteAxis: (axisId: string) => void;
+    isFilteringEnabled: boolean;
+    setIsFilteringEnabled: (enabled: boolean) => void;
+    filters: Filter[];
+    setFilters: (filters: Filter[]) => void;
+    filteredStyleIds: string[];
+}
+
+const RightSidebar: React.FC<RightSidebarProps> = ({
+    spaceData,
+    selectedStyleId,
+    setSelectedStyleId,
+    onOpenStyleModal,
+    onOpenAxisModal,
+    onDeleteStyle,
+    onDeleteAxis,
+    isFilteringEnabled,
+    setIsFilteringEnabled,
+    filters,
+    setFilters,
+    filteredStyleIds,
+}) => {
+    const handleAddFilter = () => {
+        const firstAxisId = spaceData.axes[0]?.id;
+        if (!firstAxisId) {
+            alert("Create an axis before adding a filter.");
+            return;
+        }
+        setFilters([
+            ...filters,
+            {
+                id: uuidv4(),
+                axisId: firstAxisId,
+                min: AXIS_SCORE_MIN,
+                max: AXIS_SCORE_MAX
+            }
+        ]);
+    };
+
+    const handleUpdateFilter = (id: string, newValues: Partial<Filter>) => {
+        setFilters(filters.map(f => f.id === id ? { ...f, ...newValues } : f));
+    };
+    
+    const handleRemoveFilter = (id: string) => {
+        setFilters(filters.filter(f => f.id !== id));
+    };
+
+    return (
+        <aside className="w-96 bg-gray-800 p-4 flex flex-col space-y-4 overflow-y-auto">
+             {/* Filter Controls */}
+             <div className="bg-gray-700 p-3 rounded-lg space-y-3">
+                <div className="flex items-center justify-between">
+                    <h2 className="text-lg font-semibold flex items-center">
+                        Filter Controls
+                    </h2>
+                    <button
+                        onClick={() => setIsFilteringEnabled(!isFilteringEnabled)}
+                        className={`relative inline-flex items-center h-6 rounded-full w-11 transition-colors ${isFilteringEnabled ? 'bg-blue-600' : 'bg-gray-600'}`}
+                        aria-pressed={isFilteringEnabled}
+                    >
+                        <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform ${isFilteringEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                    </button>
+                </div>
+                {isFilteringEnabled && (
+                    <div className="space-y-2">
+                        {filters.map(filter => (
+                            <div key={filter.id} className="bg-gray-900/50 p-2 rounded space-y-2">
+                                <div className="flex items-center justify-between">
+                                    <select
+                                        value={filter.axisId}
+                                        onChange={(e) => handleUpdateFilter(filter.id, { axisId: e.target.value })}
+                                        className="bg-gray-700 border border-gray-600 rounded-md p-1 text-sm w-full mr-2"
+                                    >
+                                        {spaceData.axes.map(axis => <option key={axis.id} value={axis.id}>{axis.name}</option>)}
+                                    </select>
+                                    <button onClick={() => handleRemoveFilter(filter.id)} className="p-1 text-gray-400 hover:text-red-400">
+                                       <TrashIcon />
+                                    </button>
+                                </div>
+                                <div className="flex items-center space-x-2 text-sm text-gray-400">
+                                    <input
+                                        type="number"
+                                        value={filter.min}
+                                        min={AXIS_SCORE_MIN} max={AXIS_SCORE_MAX} step="0.1"
+                                        onChange={(e) => handleUpdateFilter(filter.id, { min: parseFloat(e.target.value) || AXIS_SCORE_MIN })}
+                                        className="bg-gray-700 border border-gray-600 rounded-md p-1 text-sm w-full text-center text-white"
+                                    />
+                                    <span>to</span>
+                                    <input
+                                        type="number"
+                                        value={filter.max}
+                                        min={AXIS_SCORE_MIN} max={AXIS_SCORE_MAX} step="0.1"
+                                        onChange={(e) => handleUpdateFilter(filter.id, { max: parseFloat(e.target.value) || AXIS_SCORE_MAX })}
+                                        className="bg-gray-700 border border-gray-600 rounded-md p-1 text-sm w-full text-center text-white"
+                                    />
+                                </div>
+                            </div>
+                        ))}
+                        <button onClick={handleAddFilter} className="w-full text-sm py-2 rounded-md bg-blue-600 hover:bg-blue-700 flex items-center justify-center">
+                            <PlusIcon className="mr-1 h-4 w-4" /> Add Filter
+                        </button>
+                    </div>
+                )}
+            </div>
+
+            {/* Axes List */}
+            <div className="bg-gray-700 p-3 rounded-lg flex-1 flex flex-col min-h-0">
+                <div className="flex justify-between items-center mb-2">
+                    <h2 className="text-lg font-semibold">Axes ({spaceData.axes.length})</h2>
+                    <button onClick={() => onOpenAxisModal(null)} className="p-1 rounded-md bg-blue-600 hover:bg-blue-700"><PlusIcon /></button>
+                </div>
+                <ul className="space-y-1 overflow-y-auto flex-1">
+                    {spaceData.axes.map(axis => (
+                        <li key={axis.id} className="flex items-center justify-between p-2 rounded-md bg-gray-800 hover:bg-gray-600">
+                            <span className="flex items-center">
+                                <span className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: axis.color }}></span>
+                                {axis.name}
+                            </span>
+                            <div className="flex items-center space-x-2">
+                                <button onClick={() => onOpenAxisModal(axis.id)} className="p-1 text-gray-400 hover:text-white"><EditIcon /></button>
+                                <button onClick={() => onDeleteAxis(axis.id)} className="p-1 text-gray-400 hover:text-red-400"><TrashIcon /></button>
+                            </div>
+                        </li>
+                    ))}
+                </ul>
+            </div>
+
+            {/* Styles List */}
+            <div className="bg-gray-700 p-3 rounded-lg flex-1 flex flex-col min-h-0">
+                <div className="flex justify-between items-center mb-2">
+                    <h2 className="text-lg font-semibold">Styles ({isFilteringEnabled ? `${filteredStyleIds.length} / ` : ''}{spaceData.styles.length})</h2>
+                    <button onClick={() => onOpenStyleModal(null)} className="p-1 rounded-md bg-blue-600 hover:bg-blue-700"><PlusIcon /></button>
+                </div>
+                <ul className="space-y-1 overflow-y-auto flex-1">
+                    {spaceData.styles.map(style => (
+                        <li 
+                            key={style.id}
+                            onClick={() => setSelectedStyleId(style.id)}
+                            onDoubleClick={() => onOpenStyleModal(style.id)}
+                             className={`flex items-center justify-between p-2 rounded-md cursor-pointer transition-all ${selectedStyleId === style.id ? 'bg-blue-800' : 'bg-gray-800 hover:bg-gray-600'} ${!filteredStyleIds.includes(style.id) ? 'opacity-40' : ''}`}
+                        >
+                            <span>{style.name}</span>
+                            <div className="flex items-center space-x-2">
+                                <button onClick={(e) => { e.stopPropagation(); onOpenStyleModal(style.id); }} className="p-1 text-gray-400 hover:text-white"><EditIcon /></button>
+                                <button onClick={(e) => { e.stopPropagation(); onDeleteStyle(style.id); }} className="p-1 text-gray-400 hover:text-red-400"><TrashIcon /></button>
+                            </div>
+                        </li>
+                    ))}
+                </ul>
+            </div>
+        </aside>
+    );
+};
+
 
 const App: React.FC = () => {
     const [spaceData, setSpaceData] = useState<SpaceData | null>(null);
@@ -24,16 +187,28 @@ const App: React.FC = () => {
     const [dimension, setDimension] = useState<1 | 2 | 3>(2);
     const [activeAxisIds, setActiveAxisIds] = useState<(string | null)[]>([null, null, null]);
     
-    // Visualization modes & UMAP state
+    // Projection modes & state
     const [projectionMode, setProjectionMode] = useState<ProjectionMode>('manual');
+
+    // UMAP State
     const [umapAxisIds, setUmapAxisIds] = useState<string[]>([]);
     const [isUmapClusteringEnabled, setIsUmapClusteringEnabled] = useState<boolean>(false);
     const [umapClusterCount, setUmapClusterCount] = useState<number>(5);
-    const [clusterAssignments, setClusterAssignments] = useState<number[] | null>(null);
+    const [umapClusterAssignments, setUmapClusterAssignments] = useState<number[] | null>(null);
     const [umapClusterNames, setUmapClusterNames] = useState<Record<number, string>>({});
     const [umapData, setUmapData] = useState<number[][] | null>(null);
     const [isCalculatingUmap, setIsCalculatingUmap] = useState(false);
     const [umapError, setUmapError] = useState<string | null>(null);
+
+    // PCA State
+    const [pcaAxisIds, setPcaAxisIds] = useState<string[]>([]);
+    const [isPcaClusteringEnabled, setIsPcaClusteringEnabled] = useState<boolean>(false);
+    const [pcaClusterCount, setPcaClusterCount] = useState<number>(5);
+    const [pcaClusterAssignments, setPcaClusterAssignments] = useState<number[] | null>(null);
+    const [pcaClusterNames, setPcaClusterNames] = useState<Record<number, string>>({});
+    const [pcaData, setPcaData] = useState<number[][] | null>(null);
+    const [isCalculatingPca, setIsCalculatingPca] = useState(false);
+    const [pcaError, setPcaError] = useState<string | null>(null);
 
 
     const [selectedStyleId, setSelectedStyleId] = useState<string | null>(null);
@@ -53,6 +228,30 @@ const App: React.FC = () => {
     const [isGenerationPaused, setIsGenerationPaused] = useState<boolean>(false);
     const [isResuming, setIsResuming] = useState<boolean>(false);
     const [resumeStatus, setResumeStatus] = useState<string | null>(null);
+
+    // Filtering State
+    const [isFilteringEnabled, setIsFilteringEnabled] = useState<boolean>(false);
+    const [filters, setFilters] = useState<Filter[]>([]);
+
+    const filteredStyleIds = useMemo(() => {
+        if (!isFilteringEnabled || filters.length === 0 || !spaceData) {
+            return spaceData?.styles.map(s => s.id) || [];
+        }
+
+        const activeFilters = filters.filter(f => f.axisId);
+        if (activeFilters.length === 0) {
+            return spaceData.styles.map(s => s.id);
+        }
+
+        return spaceData.styles
+            .filter(style => {
+                return activeFilters.every(filter => {
+                    const score = style.scores[filter.axisId] ?? MIDPOINT_SCORE;
+                    return score >= filter.min && score <= filter.max;
+                });
+            })
+            .map(style => style.id);
+    }, [spaceData, isFilteringEnabled, filters]);
 
     const updateSpaceData = useCallback(async (data: SpaceData | null) => {
         setSpaceData(data);
@@ -161,17 +360,24 @@ const App: React.FC = () => {
                 spaceData.axes[1]?.id || null,
                 spaceData.axes[2]?.id || null,
             ]);
-            // When data loads, initialize UMAP axes to all available axes
-            setUmapAxisIds(spaceData.axes.map(a => a.id));
+            // When data loads, initialize projection axes to all available axes
+            const allAxisIds = spaceData.axes.map(a => a.id);
+            setUmapAxisIds(allAxisIds);
+            setPcaAxisIds(allAxisIds);
         }
     }, [spaceData]);
 
-    // Cleanup UMAP state when mode changes
+    // Cleanup projection state when mode changes
     useEffect(() => {
         if (projectionMode !== 'umap') {
             setIsUmapClusteringEnabled(false);
             setUmapData(null);
             setUmapError(null);
+        }
+        if (projectionMode !== 'pca') {
+            setIsPcaClusteringEnabled(false);
+            setPcaData(null);
+            setPcaError(null);
         }
     }, [projectionMode]);
     
@@ -199,7 +405,6 @@ const App: React.FC = () => {
             }
             
             try {
-                // Use a timeout to allow the loading state to render before blocking the main thread
                 await new Promise(resolve => setTimeout(resolve, 50));
 
                 const umap = new UMAP({
@@ -223,25 +428,86 @@ const App: React.FC = () => {
         calculateUmap();
     }, [projectionMode, umapAxisIds, spaceData, dimension]);
 
-    // Recalculate clusters when dependencies change
+    // Recalculate PCA embedding when dependencies change
+    useEffect(() => {
+        if (projectionMode !== 'pca' || pcaAxisIds.length === 0 || !spaceData) {
+            setPcaData(null);
+            setPcaError(null);
+            return;
+        }
+
+        const calculatePca = async () => {
+            setIsCalculatingPca(true);
+            setPcaData(null);
+            setPcaError(null);
+
+            const dataMatrix = spaceData.styles.map(style =>
+                pcaAxisIds.map(axisId => style.scores[axisId] ?? MIDPOINT_SCORE)
+            );
+
+            if (dataMatrix.length < 2 || pcaAxisIds.length < dimension) {
+                setPcaError(`PCA requires at least 2 styles and ${dimension} source axes for ${dimension}D projection.`);
+                setIsCalculatingPca(false);
+                return;
+            }
+            
+            try {
+                await new Promise(resolve => setTimeout(resolve, 50));
+                
+                const embedding = pca(dataMatrix, dimension);
+                if (!embedding) {
+                    throw new Error("PCA calculation returned null.");
+                }
+                setPcaData(embedding);
+
+            } catch (error) {
+                console.error("PCA calculation failed", error);
+                setPcaError(`PCA calculation failed. See console for details.`);
+            } finally {
+                setIsCalculatingPca(false);
+            }
+        };
+
+        calculatePca();
+    }, [projectionMode, pcaAxisIds, spaceData, dimension]);
+
+    // Recalculate UMAP clusters when dependencies change
     useEffect(() => {
         if (projectionMode === 'umap' && isUmapClusteringEnabled && umapData) {
             if (umapData.length > umapClusterCount && umapClusterCount > 1) {
                 const { clusters } = kmeans(umapData, umapClusterCount);
-                setClusterAssignments(clusters);
+                setUmapClusterAssignments(clusters);
             } else {
-                setClusterAssignments(null);
+                setUmapClusterAssignments(null);
             }
         } else {
-            setClusterAssignments(null);
+            setUmapClusterAssignments(null);
         }
     }, [isUmapClusteringEnabled, umapClusterCount, umapData, projectionMode]);
 
+    // Recalculate PCA clusters when dependencies change
+    useEffect(() => {
+        if (projectionMode === 'pca' && isPcaClusteringEnabled && pcaData) {
+            if (pcaData.length > pcaClusterCount && pcaClusterCount > 1) {
+                const { clusters } = kmeans(pcaData, pcaClusterCount);
+                setPcaClusterAssignments(clusters);
+            } else {
+                setPcaClusterAssignments(null);
+            }
+        } else {
+            setPcaClusterAssignments(null);
+        }
+    }, [isPcaClusteringEnabled, pcaClusterCount, pcaData, projectionMode]);
+
     const handleSetUmapClusterCount = (count: number) => {
         setUmapClusterCount(count);
-        setUmapClusterNames({}); // Reset names when count changes
+        setUmapClusterNames({});
     };
 
+     const handleSetPcaClusterCount = (count: number) => {
+        setPcaClusterCount(count);
+        setPcaClusterNames({});
+    };
 
     const handleSaveStyle = (styleToSave: Style) => {
         if (!spaceData) return;
@@ -272,7 +538,9 @@ const App: React.FC = () => {
         } else {
             isNew = true;
             newSpaceData = { ...spaceData, axes: [...spaceData.axes, axisToSave] };
-            setUmapAxisIds(prev => [...prev, axisToSave.id]); // Also add to UMAP selection
+            // Also add to projection selections
+            setUmapAxisIds(prev => [...prev, axisToSave.id]);
+            setPcaAxisIds(prev => [...prev, axisToSave.id]);
         }
         updateSpaceData(newSpaceData);
         
@@ -295,6 +563,8 @@ const App: React.FC = () => {
         updateSpaceData(newSpaceData);
         setActiveAxisIds(prev => prev.map(id => id === axisId ? null : id));
         setUmapAxisIds(prev => prev.filter(id => id !== axisId));
+        setPcaAxisIds(prev => prev.filter(id => id !== axisId));
+        setFilters(prev => prev.filter(f => f.axisId !== axisId));
     };
 
     const handleScoringWizardComplete = (updatedStyles: Style[]) => {
@@ -456,7 +726,16 @@ const App: React.FC = () => {
             </div>
         );
     }
-
+    
+    const isUmapMode = projectionMode === 'umap';
+    const isPcaMode = projectionMode === 'pca';
+    
+    // Generic props for projection-based components
+    const projectionData = isUmapMode ? umapData : (isPcaMode ? pcaData : null);
+    const isClusteringEnabled = isUmapMode ? isUmapClusteringEnabled : (isPcaMode ? isPcaClusteringEnabled : false);
+    const clusterAssignments = isUmapMode ? umapClusterAssignments : (isPcaMode ? pcaClusterAssignments : null);
+    const clusterNames = isUmapMode ? umapClusterNames : (isPcaMode ? pcaClusterNames : {});
+    
     return (
         <div className="flex h-screen w-screen bg-gray-900 font-sans">
             <Sidebar
@@ -467,25 +746,21 @@ const App: React.FC = () => {
                 setProjectionMode={setProjectionMode}
                 activeAxisIds={activeAxisIds}
                 setActiveAxisIds={setActiveAxisIds}
-                umapAxisIds={umapAxisIds}
-                setUmapAxisIds={setUmapAxisIds}
-                isUmapClusteringEnabled={isUmapClusteringEnabled}
-                setIsUmapClusteringEnabled={setIsUmapClusteringEnabled}
-                umapClusterCount={umapClusterCount}
-                setUmapClusterCount={handleSetUmapClusterCount}
+                
+                projectionAxisIds={isUmapMode ? umapAxisIds : pcaAxisIds}
+                setProjectionAxisIds={isUmapMode ? setUmapAxisIds : setPcaAxisIds}
+                isClusteringEnabled={isClusteringEnabled}
+                setIsClusteringEnabled={isUmapMode ? setIsUmapClusteringEnabled : setIsPcaClusteringEnabled}
+                clusterCount={isUmapMode ? umapClusterCount : pcaClusterCount}
+                setClusterCount={isUmapMode ? handleSetUmapClusterCount : handleSetPcaClusterCount}
                 clusterAssignments={clusterAssignments}
-                umapClusterNames={umapClusterNames}
-                setUmapClusterNames={setUmapClusterNames}
-                umapData={umapData}
-                selectedStyleId={selectedStyleId}
-                onOpenStyleModal={openStyleModal}
-                onOpenAxisModal={openAxisModal}
-                onDeleteStyle={handleDeleteStyle}
-                onDeleteAxis={handleDeleteAxis}
+                clusterNames={clusterNames}
+                setClusterNames={isUmapMode ? setUmapClusterNames : setPcaClusterNames}
+                projectionData={projectionData}
+
                 onSaveProject={handleSaveProject}
                 onLoadProject={handleLoadProject}
                 onResetProject={handleResetProject}
-                setSelectedStyleId={setSelectedStyleId}
                 isGenerationPaused={isGenerationPaused}
                 isResuming={isResuming}
                 resumeStatus={resumeStatus}
@@ -497,19 +772,35 @@ const App: React.FC = () => {
                     dimension={dimension}
                     projectionMode={projectionMode}
                     activeAxisIds={activeAxisIds.slice(0, dimension).filter((id): id is string => id !== null)}
-                    umapAxisIds={umapAxisIds}
-                    isUmapClusteringEnabled={isUmapClusteringEnabled}
-                    umapClusterCount={umapClusterCount}
+                    
+                    isClusteringEnabled={isClusteringEnabled}
                     clusterAssignments={clusterAssignments}
-                    umapClusterNames={umapClusterNames}
-                    umapData={umapData}
-                    isCalculatingUmap={isCalculatingUmap}
-                    umapError={umapError}
+                    clusterNames={clusterNames}
+                    projectionData={projectionData}
+                    isCalculatingProjection={isUmapMode ? isCalculatingUmap : (isPcaMode ? isCalculatingPca : false)}
+                    projectionError={isUmapMode ? umapError : (isPcaMode ? pcaError : null)}
+                    filteredStyleIds={filteredStyleIds}
+
                     selectedStyleId={selectedStyleId}
                     onPointClick={handlePointClick}
                     onPointDoubleClick={handlePointDoubleClick}
                 />
             </main>
+
+            <RightSidebar
+                spaceData={spaceData}
+                selectedStyleId={selectedStyleId}
+                setSelectedStyleId={setSelectedStyleId}
+                onOpenStyleModal={openStyleModal}
+                onOpenAxisModal={openAxisModal}
+                onDeleteStyle={handleDeleteStyle}
+                onDeleteAxis={handleDeleteAxis}
+                isFilteringEnabled={isFilteringEnabled}
+                setIsFilteringEnabled={setIsFilteringEnabled}
+                filters={filters}
+                setFilters={setFilters}
+                filteredStyleIds={filteredStyleIds}
+            />
             
             {isStyleModalOpen && editingStyle && (
                 <StyleEditorModal
