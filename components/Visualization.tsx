@@ -162,7 +162,6 @@ const Visualization: React.FC<VisualizationProps> = ({
                 .text(d => d.name);
 
         } else { // 3D LOGIC
-            // FIX: Define explicit types for 3D elements to help TypeScript with discriminated unions.
             type PointElementData = {
                 id: string;
                 name: string;
@@ -257,7 +256,6 @@ const Visualization: React.FC<VisualizationProps> = ({
             
             const enter = selection.enter().append('g').attr('class', 'element');
             
-            // FIX: Use type guards in filters to properly type D3 selections.
             const axisGroups = enter.filter((d): d is ProjectedAxis => d.type === 'axis');
             axisGroups.append('line').attr('stroke-width', 2);
             axisGroups.append('text').attr('text-anchor', 'middle').style('font-size', '14px');
@@ -273,7 +271,6 @@ const Visualization: React.FC<VisualizationProps> = ({
 
             const merged = selection.merge(enter);
             
-            // FIX: Split merged selection into points and axes to handle different properties.
             const mergedAxes = merged.filter((d): d is ProjectedAxis => d.type === 'axis') as d3.Selection<SVGGElement, ProjectedAxis, SVGGElement, unknown>;
             const mergedPoints = merged.filter((d): d is ProjectedPoint => d.type === 'point') as d3.Selection<SVGGElement, ProjectedPoint, SVGGElement, unknown>;
 

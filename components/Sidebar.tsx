@@ -1,7 +1,6 @@
-
 import React from 'react';
 import type { SpaceData } from '../types';
-import { PlusIcon, TrashIcon, EditIcon, FileDownIcon, FileUpIcon, ListIcon, ListTree } from './icons';
+import { PlusIcon, TrashIcon, EditIcon, FileDownIcon, FileUpIcon, ListIcon, ListTree, RefreshCwIcon } from './icons';
 
 interface SidebarProps {
     spaceData: SpaceData;
@@ -17,6 +16,7 @@ interface SidebarProps {
     onDeleteAxis: (axisId: string) => void;
     onSaveProject: () => void;
     onLoadProject: () => void;
+    onResetProject: () => void;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -33,6 +33,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     onDeleteAxis,
     onSaveProject,
     onLoadProject,
+    onResetProject,
 }) => {
     const handleAxisChange = (index: number, value: string) => {
         const newAxisIds = [...activeAxisIds];
@@ -66,12 +67,15 @@ const Sidebar: React.FC<SidebarProps> = ({
             {/* Project Controls */}
             <div className="bg-gray-700 p-3 rounded-lg">
                 <h2 className="text-lg font-semibold mb-2 flex items-center"><ListIcon className="mr-2" /> Project</h2>
-                <div className="flex space-x-2">
-                    <button onClick={onLoadProject} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-md text-sm flex items-center justify-center">
+                <div className="grid grid-cols-3 gap-2">
+                    <button onClick={onLoadProject} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-md text-sm flex items-center justify-center">
                         <FileUpIcon className="mr-1" /> Load
                     </button>
-                    <button onClick={onSaveProject} className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-3 rounded-md text-sm flex items-center justify-center">
+                    <button onClick={onSaveProject} className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-3 rounded-md text-sm flex items-center justify-center">
                         <FileDownIcon className="mr-1" /> Save
+                    </button>
+                    <button onClick={onResetProject} className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-3 rounded-md text-sm flex items-center justify-center">
+                        <RefreshCwIcon className="mr-1" /> Reset
                     </button>
                 </div>
             </div>
@@ -125,7 +129,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                         <li 
                             key={style.id}
                             onClick={() => setSelectedStyleId(style.id)}
-                            className={`flex items-center justify-between p-2 rounded-md cursor-pointer ${selectedStyleId === style.id ? 'bg-blue-800' : 'bg-gray-800 hover:bg-gray-600'}`}
+                            onDoubleClick={() => onOpenStyleModal(style.id)}
+                            className={`flex items-center justify-between p-2 rounded-md cursor-pointer ${selectedStyleId === style.id ? 'bg-blue-800' : 'bg-gray-600 hover:bg-gray-600'}`}
                         >
                             <span>{style.name}</span>
                             <div className="flex items-center space-x-2">

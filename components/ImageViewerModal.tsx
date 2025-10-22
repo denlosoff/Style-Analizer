@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import Modal from './common/Modal';
 import { ChevronLeftIcon, ChevronRightIcon } from './icons';
@@ -6,10 +5,11 @@ import { ChevronLeftIcon, ChevronRightIcon } from './icons';
 interface ImageViewerModalProps {
     images: string[];
     onClose: () => void;
+    initialIndex?: number;
 }
 
-const ImageViewerModal: React.FC<ImageViewerModalProps> = ({ images, onClose }) => {
-    const [currentIndex, setCurrentIndex] = useState(0);
+const ImageViewerModal: React.FC<ImageViewerModalProps> = ({ images, onClose, initialIndex = 0 }) => {
+    const [currentIndex, setCurrentIndex] = useState(initialIndex);
 
     const goToPrevious = () => {
         const isFirstImage = currentIndex === 0;

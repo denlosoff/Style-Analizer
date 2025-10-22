@@ -58,3 +58,7 @@ export const SparklesIcon: React.FC<{className?: string}> = ({className}) => (
 export const StarIcon: React.FC<{className?: string; isFilled?: boolean}> = ({className, isFilled}) => (
     <svg {...iconProps} className={className} fill={isFilled ? "currentColor" : "none"}><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
 );
+
+export const RefreshCwIcon: React.FC<{className?: string}> = ({className}) => (
+    <svg {...iconProps} className={className}><path d="M3 2v6h6"/><path d="M21 12A9 9 0 0 0 6 5.3L3 8"/><path d="M21 22v-6h-6"/><path d="M3 12a9 9 0 0 0 15 6.7l3-2.7"/></svg>
+);

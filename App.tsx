@@ -10,7 +10,7 @@ import AxisEditorModal from './components/AxisEditorModal';
 import ScoringWizardModal from './components/ScoringWizardModal';
 import ImageViewerModal from './components/ImageViewerModal';
 import { downloadJson, uploadJson } from './utils/fileUtils';
-import { getSpaceDataFromDB, setSpaceDataInDB } from './utils/dbUtils';
+import { getSpaceDataFromDB, setSpaceDataInDB, clearSpaceDataFromDB } from './utils/dbUtils';
 import { SparklesIcon } from './components/icons';
 
 
@@ -32,7 +32,7 @@ const App: React.FC = () => {
 
     const [scoringWizardAxis, setScoringWizardAxis] = useState<Axis | null>(null);
 
-    const [viewingImages, setViewingImages] = useState<string[] | null>(null);
+    const [viewingImages, setViewingImages] = useState<{ images: string[], initialIndex: number } | null>(null);
     
     const updateSpaceData = useCallback(async (data: SpaceData | null) => {
         setSpaceData(data);
@@ -55,8 +55,8 @@ const App: React.FC = () => {
                     setIsLoading(false);
                     return;
                 }
-                
-                setLoadingMessage('Generating initial style images... (this may take a moment)');
+        
+                setLoadingMessage('Initializing project...');
                 if (!process.env.API_KEY) {
                     console.warn("API_KEY not found. Using data without images. Please set the API_KEY environment variable for image generation.");
                     const dataWithEmptyImages = {
@@ -69,36 +69,42 @@ const App: React.FC = () => {
                 }
 
                 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-                
-                const imagePromises = INITIAL_DATA.styles.map(style => {
-                    const prompt = `A high-quality, artistic photograph of a single cup in the style of '${style.name}'. Style description: ${style.description}`;
-                    return ai.models.generateImages({
-                        model: 'imagen-4.0-generate-001',
-                        prompt: prompt,
-                        config: { numberOfImages: 1, outputMimeType: 'image/png', aspectRatio: '1:1' }
-                    });
-                });
+                const newStyles: Style[] = [];
+                const totalStyles = INITIAL_DATA.styles.length;
 
-                const imageResponses = await Promise.all(imagePromises);
+                for (let i = 0; i < totalStyles; i++) {
+                    const style = INITIAL_DATA.styles[i];
+                    setLoadingMessage(`Generating image ${i + 1} of ${totalStyles}: ${style.name}`);
+                    try {
+                        const prompt = `A high-quality, artistic photograph of a single cup in the style of '${style.name}'. Style description: ${style.description}`;
+                        const response = await ai.models.generateImages({
+                            model: 'imagen-4.0-generate-001',
+                            prompt: prompt,
+                            config: { numberOfImages: 1, outputMimeType: 'image/png', aspectRatio: '1:1' }
+                        });
 
-                const newStyles = INITIAL_DATA.styles.map((style, index) => {
-                    const response = imageResponses[index];
-                    if (response.generatedImages && response.generatedImages.length > 0) {
-                        const base64ImageBytes = response.generatedImages[0].image.imageBytes;
-                        const imageUrl = `data:image/png;base64,${base64ImageBytes}`;
-                        return { ...style, images: [imageUrl], coverImageIndex: 0 };
+                        if (response.generatedImages && response.generatedImages.length > 0) {
+                            const base64ImageBytes = response.generatedImages[0].image.imageBytes;
+                            const imageUrl = `data:image/png;base64,${base64ImageBytes}`;
+                            newStyles.push({ ...style, images: [imageUrl], coverImageIndex: 0 });
+                        } else {
+                             console.warn(`Image generation skipped for ${style.name}: No image returned.`);
+                            newStyles.push({ ...style, images: [] });
+                        }
+                    } catch (error) {
+                        console.error(`Failed to generate image for ${style.name}:`, error);
+                        newStyles.push({ ...style, images: [] }); // Add style even if image gen fails
                     }
-                    return { ...style, images: [] };
-                });
+                    // Add a delay to avoid hitting API rate limits
+                    await new Promise(resolve => setTimeout(resolve, 1100));
+                }
 
                 const newSpaceData = { ...INITIAL_DATA, axes: INITIAL_DATA.axes, styles: newStyles };
                 await updateSpaceData(newSpaceData);
 
             } catch (error) {
                 console.error("Failed to initialize app with generated images, using default data.", error);
-                if (error instanceof Error && error.message.includes('quota')) {
-                    alert("Failed to save generated images because storage quota was exceeded. Please try clearing some browser storage.");
-                }
+                alert("An unexpected error occurred during initialization. Please check the console for details.");
                 const dataWithEmptyImages = {
                     ...INITIAL_DATA,
                     styles: INITIAL_DATA.styles.map(s => ({ ...s, images: [] }))
@@ -106,6 +112,7 @@ const App: React.FC = () => {
                 await updateSpaceData(dataWithEmptyImages);
             } finally {
                 setIsLoading(false);
+                setLoadingMessage('Loading project data...'); // Reset message
             }
         };
 
@@ -182,7 +189,7 @@ const App: React.FC = () => {
         setScoringWizardAxis(null);
     };
 
-    const openStyleModal = (styleId: string | null) => {
+    const openStyleModal = useCallback((styleId: string | null) => {
         if (!spaceData) return;
         if (styleId) {
             const style = spaceData.styles.find(s => s.id === styleId);
@@ -191,9 +198,9 @@ const App: React.FC = () => {
             setEditingStyle({ id: uuidv4(), name: 'New Style', scores: {}, images: [], description: '', coverImageIndex: 0 });
         }
         setIsStyleModalOpen(true);
-    };
+    }, [spaceData]);
     
-    const openAxisModal = (axisId: string | null) => {
+    const openAxisModal = useCallback((axisId: string | null) => {
         if (!spaceData) return;
         if(axisId) {
             const axis = spaceData.axes.find(a => a.id === axisId);
@@ -202,7 +209,7 @@ const App: React.FC = () => {
             setEditingAxis({ id: uuidv4(), name: 'New Axis', description: '', color: '#FFFFFF' });
         }
         setIsAxisModalOpen(true);
-    };
+    }, [spaceData]);
     
     const handleSaveProject = useCallback(() => {
         if(spaceData) {
@@ -226,17 +233,25 @@ const App: React.FC = () => {
         }
     }, [updateSpaceData]);
 
+    const handleResetProject = useCallback(async () => {
+        if (window.confirm("Are you sure you want to reset the project? This will delete all your current styles and axes and cannot be undone.")) {
+            try {
+                await clearSpaceDataFromDB();
+                window.location.reload(); 
+            } catch (error) {
+                console.error("Failed to reset project:", error);
+                alert("Could not reset project. See console for details.");
+            }
+        }
+    }, []);
+
     const handlePointClick = useCallback((styleId: string) => {
         setSelectedStyleId(styleId);
     }, []);
 
     const handlePointDoubleClick = useCallback((styleId: string) => {
-        if (!spaceData) return;
-        const style = spaceData.styles.find(s => s.id === styleId);
-        if(style && style.images.length > 0) {
-            setViewingImages(style.images);
-        }
-    }, [spaceData]);
+        openStyleModal(styleId);
+    }, [openStyleModal]);
     
     if (isLoading || !spaceData) {
         return (
@@ -264,6 +279,7 @@ const App: React.FC = () => {
                 onDeleteAxis={handleDeleteAxis}
                 onSaveProject={handleSaveProject}
                 onLoadProject={handleLoadProject}
+                onResetProject={handleResetProject}
                 setSelectedStyleId={setSelectedStyleId}
             />
             <main className="flex-1 flex flex-col p-4 bg-black">
@@ -283,6 +299,7 @@ const App: React.FC = () => {
                     axes={spaceData.axes}
                     onSave={handleSaveStyle}
                     onClose={() => { setIsStyleModalOpen(false); setEditingStyle(null); }}
+                    onViewImages={(images, initialIndex) => setViewingImages({images, initialIndex})}
                 />
             )}
 
@@ -305,7 +322,8 @@ const App: React.FC = () => {
 
             {viewingImages && (
                 <ImageViewerModal
-                    images={viewingImages}
+                    images={viewingImages.images}
+                    initialIndex={viewingImages.initialIndex}
                     onClose={() => setViewingImages(null)}
                 />
             )}

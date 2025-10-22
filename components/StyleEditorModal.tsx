@@ -10,6 +10,7 @@ interface StyleEditorModalProps {
     axes: Axis[];
     onSave: (style: Style) => void;
     onClose: () => void;
+    onViewImages: (images: string[], startIndex: number) => void;
 }
 
 // Helper function to fetch an image URL and convert it to a base64 string
@@ -75,7 +76,7 @@ async function imageUrlToBase64(url: string): Promise<{ data: string; mimeType: 
 }
 
 
-const StyleEditorModal: React.FC<StyleEditorModalProps> = ({ style, axes, onSave, onClose }) => {
+const StyleEditorModal: React.FC<StyleEditorModalProps> = ({ style, axes, onSave, onClose, onViewImages }) => {
     const [formData, setFormData] = useState<Style>(style);
     const [newImageUrl, setNewImageUrl] = useState('');
     const [isGeneratingImage, setIsGeneratingImage] = useState(false);
@@ -334,12 +335,12 @@ const StyleEditorModal: React.FC<StyleEditorModalProps> = ({ style, axes, onSave
                      <div className="grid grid-cols-3 gap-2 mt-2">
                         {formData.images.map((url, index) => (
                             <div key={url.substring(0, 50) + index} className="relative group aspect-square">
-                                <img src={url} alt={`Style image ${index + 1}`} className="rounded-md w-full h-full object-cover" />
+                                <img src={url} alt={`Style image ${index + 1}`} className="rounded-md w-full h-full object-cover cursor-pointer" onClick={() => onViewImages(formData.images, index)} />
                                 <div className="absolute inset-0 bg-black bg-opacity-60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center space-x-2">
-                                    <button type="button" title="Set as cover" onClick={() => handleSetCoverImage(index)} className="p-2 text-yellow-400 hover:text-yellow-300 rounded-full hover:bg-black/50">
+                                    <button type="button" title="Set as cover" onClick={(e) => { e.stopPropagation(); handleSetCoverImage(index); }} className="p-2 text-yellow-400 hover:text-yellow-300 rounded-full hover:bg-black/50">
                                         <StarIcon isFilled={formData.coverImageIndex === index} />
                                     </button>
-                                    <button type="button" title="Remove image" onClick={() => handleRemoveImage(url)} className="p-2 text-red-500 hover:text-red-400 rounded-full hover:bg-black/50">
+                                    <button type="button" title="Remove image" onClick={(e) => { e.stopPropagation(); handleRemoveImage(url); }} className="p-2 text-red-500 hover:text-red-400 rounded-full hover:bg-black/50">
                                         <TrashIcon />
                                     </button>
                                 </div>
