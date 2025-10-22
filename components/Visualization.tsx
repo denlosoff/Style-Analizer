@@ -3,12 +3,15 @@ import * as d3 from 'd3';
 import { UMAP } from 'umap-js';
 import type { SpaceData, Style, Axis, ProjectionMode } from '../types';
 import { AXIS_SCORE_MIN, AXIS_SCORE_MAX } from '../constants';
+import { kmeans } from '../utils/clustering';
 
 interface VisualizationProps {
     spaceData: SpaceData;
     projectionMode: ProjectionMode;
     activeAxisIds: string[];
     umapAxisIds: string[];
+    isUmapClusteringEnabled: boolean;
+    umapClusterCount: number;
     selectedStyleId: string | null;
     dimension: 1 | 2 | 3;
     onPointClick: (styleId: string) => void;
@@ -25,6 +28,8 @@ const Visualization: React.FC<VisualizationProps> = ({
     projectionMode,
     activeAxisIds,
     umapAxisIds,
+    isUmapClusteringEnabled,
+    umapClusterCount,
     selectedStyleId,
     dimension,
     onPointClick,
@@ -37,18 +42,23 @@ const Visualization: React.FC<VisualizationProps> = ({
     const [umapData, setUmapData] = useState<number[][] | null>(null);
     const [isCalculatingUmap, setIsCalculatingUmap] = useState(false);
     const [umapError, setUmapError] = useState<string | null>(null);
+    const [clusterAssignments, setClusterAssignments] = useState<number[] | null>(null);
+
+    const clusterColors = d3.scaleOrdinal(d3.schemeCategory10);
 
     useEffect(() => {
         if (projectionMode !== 'umap' || umapAxisIds.length === 0) {
             setUmapData(null);
             setUmapError(null);
+            setClusterAssignments(null);
             return;
         }
 
-        const calculateUmap = async () => {
+        const calculateUmapAndClusters = async () => {
             setIsCalculatingUmap(true);
             setUmapData(null);
             setUmapError(null);
+            setClusterAssignments(null);
 
             const dataMatrix = spaceData.styles.map(style =>
                 umapAxisIds.map(axisId => style.scores[axisId] ?? MIDPOINT_SCORE)
@@ -71,6 +81,15 @@ const Visualization: React.FC<VisualizationProps> = ({
                 const embedding = await umap.fitAsync(dataMatrix);
                 setUmapData(embedding);
 
+                if (isUmapClusteringEnabled) {
+                    if (embedding.length > umapClusterCount && umapClusterCount > 1) {
+                        const { clusters } = kmeans(embedding, umapClusterCount);
+                        setClusterAssignments(clusters);
+                    } else {
+                        setClusterAssignments(null);
+                    }
+                }
+
             } catch (error) {
                 console.error("UMAP calculation failed", error);
                 setUmapError(`UMAP calculation failed. See console for details.`);
@@ -79,8 +98,8 @@ const Visualization: React.FC<VisualizationProps> = ({
             }
         };
 
-        calculateUmap();
-    }, [projectionMode, umapAxisIds, spaceData.styles, dimension]);
+        calculateUmapAndClusters();
+    }, [projectionMode, umapAxisIds, spaceData.styles, dimension, isUmapClusteringEnabled, umapClusterCount]);
 
     useEffect(() => {
         if (!svgRef.current || !containerRef.current) return;
@@ -206,6 +225,14 @@ const Visualization: React.FC<VisualizationProps> = ({
                 .style('opacity', d => d.isScored ? 1 : 0.4)
                 .on('click', (e, d) => onPointClick(d.id))
                 .on('dblclick', (e, d) => onPointDoubleClick(d.id));
+            
+            groups.append('circle')
+                .attr('cx', d => halfPointSize(d.id))
+                .attr('cy', d => halfPointSize(d.id))
+                .attr('r', d => halfPointSize(d.id) + 5)
+                .attr('fill', 'none')
+                .attr('stroke', (d, i) => clusterAssignments ? clusterColors(clusterAssignments[i].toString()) : 'transparent')
+                .attr('stroke-width', 3);
 
             groups.append('image').attr('href', d => d.coverImageUrl).attr('width', d => pointSize(d.id)).attr('height', d => pointSize(d.id))
                 .attr('clip-path', 'url(#point-clip)').attr('transform', d => `scale(${pointSize(d.id)/30})`);
@@ -296,8 +323,10 @@ const Visualization: React.FC<VisualizationProps> = ({
             axisGroups.append('text').attr('text-anchor', 'middle').style('font-size', '14px');
             const pointGroups = enter.filter((d): d is ProjectedPoint => d.type === 'point')
                 .style('cursor', 'pointer').on('click', (e, d) => onPointClick(d.id)).on('dblclick', (e, d) => onPointDoubleClick(d.id));
+            
+            pointGroups.append('circle').attr('class', 'cluster-ring').attr('fill', 'none');
             pointGroups.append('image').attr('clip-path', 'url(#point-clip-3d)');
-            pointGroups.append('circle').attr('fill', 'none');
+            pointGroups.append('circle').attr('class', 'selection-ring').attr('fill', 'none');
             pointGroups.append('text').attr('class', 'label').attr('text-anchor', 'middle').attr('fill', 'white').style('pointer-events', 'none');
             const merged = selection.merge(enter);
             const mergedAxes = merged.filter((d): d is ProjectedAxis => d.type === 'axis') as d3.Selection<SVGGElement, ProjectedAxis, SVGGElement, unknown>;
@@ -307,14 +336,25 @@ const Visualization: React.FC<VisualizationProps> = ({
             mergedAxes.select<SVGTextElement>('text').attr('x', d => d.x2).attr('y', d => d.y2 - 10).attr('fill', d => d.color).text(d => d.label);
             const pointSize = (d: ProjectedPoint) => (selectedStyleId === d.id ? 20 : 15) * (0.6 + (d.z + 1) / 2 * 0.6);
             mergedPoints.attr('transform', d => `translate(${d.x}, ${d.y})`).attr('opacity', d => (d.isScored ? 0.7 : 0.35) + (d.z + 1) / 2 * 0.3);
+            
+            mergedPoints.select<SVGCircleElement>('circle.cluster-ring')
+                .attr('r', d => pointSize(d) + 5)
+                .attr('stroke-width', 3)
+                .attr('stroke', d => {
+                    if (!clusterAssignments) return 'transparent';
+                    const originalIndex = spaceData.styles.findIndex(s => s.id === d.id);
+                    if (originalIndex === -1) return 'transparent';
+                    return clusterColors(clusterAssignments[originalIndex].toString());
+                });
+
             mergedPoints.select<SVGImageElement>('image').attr('href', d => d.coverImageUrl).attr('x', d => -pointSize(d)).attr('y', d => -pointSize(d))
                 .attr('width', d => pointSize(d) * 2).attr('height', d => pointSize(d) * 2);
-            mergedPoints.select<SVGCircleElement>('circle').attr('r', d => pointSize(d) + 2).attr('stroke', d => selectedStyleId === d.id ? 'white' : 'transparent').attr('stroke-width', 3);
+            mergedPoints.select<SVGCircleElement>('circle.selection-ring').attr('r', d => pointSize(d) + 2).attr('stroke', d => selectedStyleId === d.id ? 'white' : 'transparent').attr('stroke-width', 3);
             mergedPoints.select<SVGTextElement>('text.label').attr('y', d => -pointSize(d) - 8).attr('font-size', d => 12 * (0.8 + (d.z + 1) / 2 * 0.4)).text(d => d.name);
             const drag = d3.drag().on('drag', (event) => setRotation(current => ({ y: current.y + event.dx * 0.5, x: current.x - event.dy * 0.5 })));
             svg.call(drag as any);
         }
-    }, [spaceData, activeAxisIds, selectedStyleId, onPointClick, onPointDoubleClick, dimension, rotation, projectionMode, umapAxisIds, umapData, isCalculatingUmap, umapError]);
+    }, [spaceData, activeAxisIds, selectedStyleId, onPointClick, onPointDoubleClick, dimension, rotation, projectionMode, umapAxisIds, umapData, isCalculatingUmap, umapError, clusterAssignments, clusterColors]);
 
     return <div ref={containerRef} className="w-full h-full cursor-grab active:cursor-grabbing"><svg ref={svgRef}></svg></div>;
 };

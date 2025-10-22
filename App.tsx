@@ -24,6 +24,9 @@ const App: React.FC = () => {
     // Visualization modes
     const [projectionMode, setProjectionMode] = useState<ProjectionMode>('manual');
     const [umapAxisIds, setUmapAxisIds] = useState<string[]>([]);
+    const [isUmapClusteringEnabled, setIsUmapClusteringEnabled] = useState<boolean>(false);
+    const [umapClusterCount, setUmapClusterCount] = useState<number>(5);
+
 
     const [selectedStyleId, setSelectedStyleId] = useState<string | null>(null);
 
@@ -154,6 +157,12 @@ const App: React.FC = () => {
             setUmapAxisIds(spaceData.axes.map(a => a.id));
         }
     }, [spaceData]);
+
+    useEffect(() => {
+        if (projectionMode !== 'umap') {
+            setIsUmapClusteringEnabled(false);
+        }
+    }, [projectionMode]);
 
 
     const handleSaveStyle = (styleToSave: Style) => {
@@ -382,6 +391,10 @@ const App: React.FC = () => {
                 setActiveAxisIds={setActiveAxisIds}
                 umapAxisIds={umapAxisIds}
                 setUmapAxisIds={setUmapAxisIds}
+                isUmapClusteringEnabled={isUmapClusteringEnabled}
+                setIsUmapClusteringEnabled={setIsUmapClusteringEnabled}
+                umapClusterCount={umapClusterCount}
+                setUmapClusterCount={setUmapClusterCount}
                 selectedStyleId={selectedStyleId}
                 onOpenStyleModal={openStyleModal}
                 onOpenAxisModal={openAxisModal}
@@ -403,6 +416,8 @@ const App: React.FC = () => {
                     projectionMode={projectionMode}
                     activeAxisIds={activeAxisIds.slice(0, dimension).filter((id): id is string => id !== null)}
                     umapAxisIds={umapAxisIds}
+                    isUmapClusteringEnabled={isUmapClusteringEnabled}
+                    umapClusterCount={umapClusterCount}
                     selectedStyleId={selectedStyleId}
                     onPointClick={handlePointClick}
                     onPointDoubleClick={handlePointDoubleClick}

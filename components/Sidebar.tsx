@@ -12,6 +12,10 @@ interface SidebarProps {
     setActiveAxisIds: (ids: (string | null)[]) => void;
     umapAxisIds: string[];
     setUmapAxisIds: (ids: string[]) => void;
+    isUmapClusteringEnabled: boolean;
+    setIsUmapClusteringEnabled: (enabled: boolean) => void;
+    umapClusterCount: number;
+    setUmapClusterCount: (count: number) => void;
     selectedStyleId: string | null;
     setSelectedStyleId: (id: string | null) => void;
     onOpenStyleModal: (styleId: string | null) => void;
@@ -37,6 +41,10 @@ const Sidebar: React.FC<SidebarProps> = ({
     setActiveAxisIds,
     umapAxisIds,
     setUmapAxisIds,
+    isUmapClusteringEnabled,
+    setIsUmapClusteringEnabled,
+    umapClusterCount,
+    setUmapClusterCount,
     selectedStyleId,
     setSelectedStyleId,
     onOpenStyleModal,
@@ -146,26 +154,55 @@ const Sidebar: React.FC<SidebarProps> = ({
                         {dimension === 3 && renderAxisSelector(2, 'Z')}
                     </>
                 ) : (
-                    <details className="space-y-2" open>
-                        <summary className="text-sm font-medium text-gray-400 cursor-pointer flex items-center">
-                            UMAP Source Axes ({umapAxisIds.length} / {spaceData.axes.length})
-                            <ChevronDownIcon className="ml-1" />
-                        </summary>
-                        <div className="max-h-32 overflow-y-auto bg-gray-900/50 p-2 rounded-md space-y-1 text-sm">
-                            {spaceData.axes.map(axis => (
-                                <div key={axis.id} className="flex items-center space-x-2 hover:bg-gray-700 p-1 rounded">
+                    <>
+                        <details className="space-y-2" open>
+                            <summary className="text-sm font-medium text-gray-400 cursor-pointer flex items-center">
+                                UMAP Source Axes ({umapAxisIds.length} / {spaceData.axes.length})
+                                <ChevronDownIcon className="ml-1" />
+                            </summary>
+                            <div className="max-h-32 overflow-y-auto bg-gray-900/50 p-2 rounded-md space-y-1 text-sm">
+                                {spaceData.axes.map(axis => (
+                                    <div key={axis.id} className="flex items-center space-x-2 hover:bg-gray-700 p-1 rounded">
+                                        <input
+                                            type="checkbox"
+                                            id={`umap-axis-${axis.id}`}
+                                            checked={umapAxisIds.includes(axis.id)}
+                                            onChange={() => handleUmapAxisToggle(axis.id)}
+                                            className="form-checkbox bg-gray-700 border-gray-600 rounded text-blue-500 focus:ring-blue-600"
+                                        />
+                                        <label htmlFor={`umap-axis-${axis.id}`} className="flex-1 cursor-pointer">{axis.name}</label>
+                                    </div>
+                                ))}
+                            </div>
+                        </details>
+                        <div className="mt-3 pt-3 border-t border-gray-600">
+                            <div className="flex items-center justify-between">
+                                <label htmlFor="enable-clustering" className="text-sm font-medium text-gray-400 cursor-pointer">Enable Clustering</label>
+                                <button
+                                    id="enable-clustering"
+                                    onClick={() => setIsUmapClusteringEnabled(!isUmapClusteringEnabled)}
+                                    className={`relative inline-flex items-center h-6 rounded-full w-11 transition-colors ${isUmapClusteringEnabled ? 'bg-blue-600' : 'bg-gray-600'}`}
+                                    aria-pressed={isUmapClusteringEnabled}
+                                >
+                                    <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform ${isUmapClusteringEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                                </button>
+                            </div>
+                            {isUmapClusteringEnabled && (
+                                <div className="mt-2">
+                                    <label htmlFor="cluster-count" className="text-sm font-medium text-gray-400 block mb-1">Number of Clusters</label>
                                     <input
-                                        type="checkbox"
-                                        id={`umap-axis-${axis.id}`}
-                                        checked={umapAxisIds.includes(axis.id)}
-                                        onChange={() => handleUmapAxisToggle(axis.id)}
-                                        className="form-checkbox bg-gray-700 border-gray-600 rounded text-blue-500 focus:ring-blue-600"
+                                        type="number"
+                                        id="cluster-count"
+                                        min="2"
+                                        max={Math.min(20, spaceData.styles.length - 1)}
+                                        value={umapClusterCount}
+                                        onChange={(e) => setUmapClusterCount(parseInt(e.target.value, 10) || 2)}
+                                        className="mt-1 w-full bg-gray-900/50 border border-gray-600 rounded-md p-2 text-sm"
                                     />
-                                    <label htmlFor={`umap-axis-${axis.id}`} className="flex-1 cursor-pointer">{axis.name}</label>
                                 </div>
-                            ))}
+                            )}
                         </div>
-                    </details>
+                    </>
                 )}
             </div>
 
