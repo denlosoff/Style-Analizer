@@ -1,8 +1,8 @@
-
 import React, { useState, useEffect } from 'react';
 import type { Axis } from '../types';
 import Modal from './common/Modal';
 import { generateRandomColor } from '../utils/colorUtils';
+import { useTranslation } from '../i18n/i18n';
 
 interface AxisEditorModalProps {
     axis: Axis;
@@ -11,6 +11,7 @@ interface AxisEditorModalProps {
 }
 
 const AxisEditorModal: React.FC<AxisEditorModalProps> = ({ axis, onSave, onClose }) => {
+    const { t } = useTranslation();
     const [formData, setFormData] = useState<Axis>(axis);
 
     useEffect(() => {
@@ -35,16 +36,16 @@ const AxisEditorModal: React.FC<AxisEditorModalProps> = ({ axis, onSave, onClose
 
     const footer = (
         <div className="space-x-2">
-            <button onClick={onClose} className="px-4 py-2 rounded-md bg-gray-600 hover:bg-gray-500">Cancel</button>
-            <button onClick={handleSubmit} className="px-4 py-2 rounded-md bg-blue-600 hover:bg-blue-700">Save Axis</button>
+            <button onClick={onClose} className="px-4 py-2 rounded-md bg-gray-600 hover:bg-gray-500">{t('axisEditorModal.cancelButton')}</button>
+            <button onClick={handleSubmit} className="px-4 py-2 rounded-md bg-blue-600 hover:bg-blue-700">{t('axisEditorModal.saveButton')}</button>
         </div>
     );
     
     return (
-        <Modal title={axis.id ? 'Edit Axis' : 'Create Axis'} onClose={onClose} footer={footer}>
+        <Modal title={axis.id ? t('axisEditorModal.editTitle') : t('axisEditorModal.createTitle')} onClose={onClose} footer={footer}>
             <form className="space-y-4" onSubmit={handleSubmit}>
                 <div>
-                    <label className="block text-sm font-medium text-gray-400">Axis Name</label>
+                    <label className="block text-sm font-medium text-gray-400">{t('axisEditorModal.axisNameLabel')}</label>
                     <input
                         type="text"
                         name="name"
@@ -55,7 +56,7 @@ const AxisEditorModal: React.FC<AxisEditorModalProps> = ({ axis, onSave, onClose
                     />
                 </div>
                 <div>
-                    <label className="block text-sm font-medium text-gray-400">Description</label>
+                    <label className="block text-sm font-medium text-gray-400">{t('axisEditorModal.descriptionLabel')}</label>
                     <textarea
                         name="description"
                         value={formData.description}
@@ -65,7 +66,7 @@ const AxisEditorModal: React.FC<AxisEditorModalProps> = ({ axis, onSave, onClose
                     />
                 </div>
                 <div>
-                    <label className="block text-sm font-medium text-gray-400">Color</label>
+                    <label className="block text-sm font-medium text-gray-400">{t('axisEditorModal.colorLabel')}</label>
                      <div className="flex items-center space-x-2 mt-1">
                         <input
                             type="color"

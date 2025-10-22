@@ -1,8 +1,8 @@
-
 import React, { useState } from 'react';
 import type { Axis, Style } from '../types';
 import Modal from './common/Modal';
 import { AXIS_SCORE_MIN, AXIS_SCORE_MAX } from '../constants';
+import { useTranslation } from '../i18n/i18n';
 
 interface ScoringWizardModalProps {
     axis: Axis;
@@ -12,6 +12,7 @@ interface ScoringWizardModalProps {
 }
 
 const ScoringWizardModal: React.FC<ScoringWizardModalProps> = ({ axis, styles, onComplete, onClose }) => {
+    const { t } = useTranslation();
     const [scores, setScores] = useState<Record<string, number>>(() => {
         const initialScores: Record<string, number> = {};
         styles.forEach(style => {
@@ -40,14 +41,14 @@ const ScoringWizardModal: React.FC<ScoringWizardModalProps> = ({ axis, styles, o
 
     const footer = (
         <div className="space-x-2">
-            <button onClick={onClose} className="px-4 py-2 rounded-md bg-gray-600 hover:bg-gray-500">Cancel</button>
-            <button onClick={handleSave} className="px-4 py-2 rounded-md bg-blue-600 hover:bg-blue-700">Apply Scores</button>
+            <button onClick={onClose} className="px-4 py-2 rounded-md bg-gray-600 hover:bg-gray-500">{t('scoringWizardModal.cancelButton')}</button>
+            <button onClick={handleSave} className="px-4 py-2 rounded-md bg-blue-600 hover:bg-blue-700">{t('scoringWizardModal.applyScoresButton')}</button>
         </div>
     );
 
     return (
-        <Modal title={`Score Styles for "${axis.name}"`} onClose={onClose} footer={footer}>
-            <p className="mb-4 text-gray-400">Set a score from {AXIS_SCORE_MIN} to {AXIS_SCORE_MAX} for each style on the new axis.</p>
+        <Modal title={t('scoringWizardModal.title', { axisName: axis.name })} onClose={onClose} footer={footer}>
+            <p className="mb-4 text-gray-400">{t('scoringWizardModal.description', { min: AXIS_SCORE_MIN, max: AXIS_SCORE_MAX })}</p>
             <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-2">
                 {styles.map(style => (
                     <div key={style.id} className="grid grid-cols-3 items-center gap-4">

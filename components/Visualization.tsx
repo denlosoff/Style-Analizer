@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import * as d3 from 'd3';
 import type { SpaceData, Style, Axis, ProjectionMode } from '../types';
 import { AXIS_SCORE_MIN, AXIS_SCORE_MAX } from '../constants';
+import { useTranslation } from '../i18n/i18n';
 
 interface VisualizationProps {
     spaceData: SpaceData;
@@ -41,6 +42,7 @@ const Visualization: React.FC<VisualizationProps> = ({
     onPointDoubleClick,
     filteredStyleIds,
 }) => {
+    const { t } = useTranslation();
     const svgRef = useRef<SVGSVGElement | null>(null);
     const containerRef = useRef<HTMLDivElement | null>(null);
     const [rotation, setRotation] = useState({ x: 20, y: -30 });
@@ -73,7 +75,7 @@ const Visualization: React.FC<VisualizationProps> = ({
         }
 
         if (isCalculatingProjection) {
-            renderMessage(`Calculating ${projectionMode.toUpperCase()} projection...`);
+            renderMessage(t('visualization.calculatingProjectionMessage', { mode: projectionMode.toUpperCase() }));
             return;
         }
         if (projectionError) {
@@ -84,22 +86,22 @@ const Visualization: React.FC<VisualizationProps> = ({
         // Manual Mode Rendering
         if (projectionMode === 'manual') {
             if (activeAxisIds.length === 0 || !activeAxisIds[0]) {
-                 renderMessage('Select an axis to begin visualization.');
+                 renderMessage(t('visualization.selectAxisMessage'));
                 return;
             }
             if (dimension >= 2 && !activeAxisIds[1]) {
-                renderMessage('Select a Y axis for 2D visualization.');
+                renderMessage(t('visualization.selectYAxisMessage'));
                 return;
             }
             if (dimension >= 3 && !activeAxisIds[2]) {
-                renderMessage('Select a Z axis for 3D visualization.');
+                renderMessage(t('visualization.selectZAxisMessage'));
                 return;
             }
         }
         
         // Projection Mode Prereq Check
         if (projectionMode !== 'manual' && !projectionData) {
-            renderMessage(`Select source axes for ${projectionMode.toUpperCase()} projection.`);
+            renderMessage(t('visualization.selectSourceAxesMessage', { mode: projectionMode.toUpperCase() }));
             return;
         }
 
@@ -334,14 +336,14 @@ const Visualization: React.FC<VisualizationProps> = ({
             const drag = d3.drag().on('drag', (event) => setRotation(current => ({ y: current.y + event.dx * 0.5, x: current.x - event.dy * 0.5 })));
             svg.call(drag as any);
         }
-    }, [spaceData, activeAxisIds, selectedStyleId, onPointClick, onPointDoubleClick, dimension, rotation, projectionMode, projectionData, isCalculatingProjection, projectionError, clusterAssignments, clusterColors, clusterNames, isClusteringEnabled, filteredStyleIds]);
+    }, [spaceData, activeAxisIds, selectedStyleId, onPointClick, onPointDoubleClick, dimension, rotation, projectionMode, projectionData, isCalculatingProjection, projectionError, clusterAssignments, clusterColors, clusterNames, isClusteringEnabled, filteredStyleIds, t]);
 
     return (
         <div ref={containerRef} className="w-full h-full cursor-grab active:cursor-grabbing relative">
             <svg ref={svgRef}></svg>
             {isClusteringEnabled && clusterAssignments && (
                 <div className="absolute bottom-4 left-4 bg-gray-800 bg-opacity-80 p-3 rounded-lg text-white text-sm max-w-xs pointer-events-auto">
-                    <h4 className="font-bold mb-2">Cluster Legend</h4>
+                    <h4 className="font-bold mb-2">{t('visualization.clusterLegendTitle')}</h4>
                     <ul className="space-y-1">
                         {Array.from<number>(new Set(clusterAssignments)).sort((a,b) => a - b).filter(id => id !== -1).map(clusterId => (
                             <li key={clusterId} className="flex items-center">
@@ -349,7 +351,7 @@ const Visualization: React.FC<VisualizationProps> = ({
                                     className="w-4 h-4 rounded-full mr-2 border border-white/50 flex-shrink-0"
                                     style={{ backgroundColor: clusterColors(clusterId.toString()) }}
                                 ></span>
-                                <span>{clusterNames[clusterId] || `Cluster ${clusterId + 1}`}</span>
+                                <span>{clusterNames[clusterId] || t('visualization.clusterLabel', { number: clusterId + 1})}</span>
                             </li>
                         ))}
                     </ul>

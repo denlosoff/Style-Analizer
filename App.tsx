@@ -15,6 +15,7 @@ import { getSpaceDataFromDB, setSpaceDataInDB, clearSpaceDataFromDB } from './ut
 import { SparklesIcon, PlusIcon, TrashIcon, EditIcon } from './components/icons';
 import { kmeans } from './utils/clustering';
 import { pca } from './utils/pca';
+import { LanguageProvider, useTranslation } from './i18n/i18n';
 
 const MIDPOINT_SCORE = (AXIS_SCORE_MAX + AXIS_SCORE_MIN) / 2;
 
@@ -47,10 +48,12 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
     setFilters,
     filteredStyleIds,
 }) => {
+    const { t } = useTranslation();
+
     const handleAddFilter = () => {
         const firstAxisId = spaceData.axes[0]?.id;
         if (!firstAxisId) {
-            alert("Create an axis before adding a filter.");
+            alert(t('rightSidebar.addFilterError'));
             return;
         }
         setFilters([
@@ -78,7 +81,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
              <div className="bg-gray-700 p-3 rounded-lg space-y-3">
                 <div className="flex items-center justify-between">
                     <h2 className="text-lg font-semibold flex items-center">
-                        Filter Controls
+                        {t('rightSidebar.filterControlsTitle')}
                     </h2>
                     <button
                         onClick={() => setIsFilteringEnabled(!isFilteringEnabled)}
@@ -124,7 +127,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                             </div>
                         ))}
                         <button onClick={handleAddFilter} className="w-full text-sm py-2 rounded-md bg-blue-600 hover:bg-blue-700 flex items-center justify-center">
-                            <PlusIcon className="mr-1 h-4 w-4" /> Add Filter
+                            <PlusIcon className="mr-1 h-4 w-4" /> {t('rightSidebar.addFilterButton')}
                         </button>
                     </div>
                 )}
@@ -133,7 +136,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
             {/* Axes List */}
             <div className="bg-gray-700 p-3 rounded-lg flex-1 flex flex-col min-h-0">
                 <div className="flex justify-between items-center mb-2">
-                    <h2 className="text-lg font-semibold">Axes ({spaceData.axes.length})</h2>
+                    <h2 className="text-lg font-semibold">{t('rightSidebar.axesListTitle', { count: spaceData.axes.length })}</h2>
                     <button onClick={() => onOpenAxisModal(null)} className="p-1 rounded-md bg-blue-600 hover:bg-blue-700"><PlusIcon /></button>
                 </div>
                 <ul className="space-y-1 overflow-y-auto flex-1">
@@ -155,7 +158,11 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
             {/* Styles List */}
             <div className="bg-gray-700 p-3 rounded-lg flex-1 flex flex-col min-h-0">
                 <div className="flex justify-between items-center mb-2">
-                    <h2 className="text-lg font-semibold">Styles ({isFilteringEnabled ? `${filteredStyleIds.length} / ` : ''}{spaceData.styles.length})</h2>
+                    <h2 className="text-lg font-semibold">
+                         {isFilteringEnabled 
+                            ? t('rightSidebar.stylesListFilteredTitle', { filteredCount: filteredStyleIds.length, totalCount: spaceData.styles.length }) 
+                            : t('rightSidebar.stylesListTitle', { count: spaceData.styles.length })}
+                    </h2>
                     <button onClick={() => onOpenStyleModal(null)} className="p-1 rounded-md bg-blue-600 hover:bg-blue-700"><PlusIcon /></button>
                 </div>
                 <ul className="space-y-1 overflow-y-auto flex-1">
@@ -180,10 +187,11 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
 };
 
 
-const App: React.FC = () => {
+const AppContent: React.FC = () => {
+    const { t } = useTranslation();
     const [spaceData, setSpaceData] = useState<SpaceData | null>(null);
     const [isLoading, setIsLoading] = useState<boolean>(true);
-    const [loadingMessage, setLoadingMessage] = useState<string>('Loading project data...');
+    const [loadingMessage, setLoadingMessage] = useState<string>(t('app.loadingMessage'));
     const [dimension, setDimension] = useState<1 | 2 | 3>(2);
     const [activeAxisIds, setActiveAxisIds] = useState<(string | null)[]>([null, null, null]);
     
@@ -262,10 +270,10 @@ const App: React.FC = () => {
                 await setSpaceDataInDB(data);
             } catch (error) {
                 console.error("Failed to save data to IndexedDB", error);
-                alert("Could not save project data. The browser's storage might be full or corrupted.");
+                alert(t('app.saveError'));
             }
         }
-    }, []);
+    }, [t]);
 
     useEffect(() => {
         const initializeApp = async () => {
@@ -281,9 +289,10 @@ const App: React.FC = () => {
                     return;
                 }
         
-                setLoadingMessage('Initializing project...');
+                setLoadingMessage(t('app.initializingMessage'));
                 if (!process.env.API_KEY) {
                     console.warn("API_KEY not found. Using data without images. Please set the API_KEY environment variable for image generation.");
+                    alert(t('app.apiKeyWarning'));
                     const dataWithEmptyImages = {
                         ...INITIAL_DATA,
                         styles: INITIAL_DATA.styles.map(s => ({ ...s, images: [] }))
@@ -300,7 +309,7 @@ const App: React.FC = () => {
 
                 for (let i = 0; i < initialStyles.length; i++) {
                     const style = initialStyles[i];
-                    setLoadingMessage(`Generating image ${i + 1} of ${initialStyles.length}: ${style.name}`);
+                    setLoadingMessage(t('app.generatingImageMessage', { current: i + 1, total: initialStyles.length, name: style.name }));
                     try {
                         const prompt = `${style.generationPrompt}, in the style of '${style.name}'. Style description: ${style.description}`;
                         const response = await ai.models.generateImages({
@@ -340,7 +349,7 @@ const App: React.FC = () => {
 
             } catch (error) {
                 console.error("Failed to initialize app with generated images, using default data.", error);
-                alert("An unexpected error occurred during initialization. Please check the console for details.");
+                alert(t('app.initializationError'));
                 const dataWithEmptyImages = {
                     ...INITIAL_DATA,
                     styles: INITIAL_DATA.styles.map(s => ({ ...s, images: [] }))
@@ -348,12 +357,12 @@ const App: React.FC = () => {
                 await updateSpaceData(dataWithEmptyImages);
             } finally {
                 setIsLoading(false);
-                setLoadingMessage('Loading project data...'); // Reset message
+                setLoadingMessage(t('app.loadingMessage')); // Reset message
             }
         };
 
         initializeApp();
-    }, [updateSpaceData]);
+    }, [updateSpaceData, t]);
 
      useEffect(() => {
         if (spaceData) {
@@ -663,25 +672,25 @@ const App: React.FC = () => {
                 setDimension(2);
                 setSelectedStyleId(null);
             } else {
-                alert('Invalid project file format.');
+                alert(t('app.invalidProjectFile'));
             }
         } catch (error) {
             console.error('Failed to load project:', error);
-            alert('Error loading file. See console for details.');
+            alert(t('app.loadError'));
         }
-    }, [updateSpaceData]);
+    }, [updateSpaceData, t]);
 
     const handleResetProject = useCallback(async () => {
-        if (window.confirm("Are you sure you want to reset the project? This will delete all your current styles and axes and cannot be undone.")) {
+        if (window.confirm(t('app.resetConfirmation'))) {
             try {
                 await clearSpaceDataFromDB();
                 window.location.reload(); 
             } catch (error) {
                 console.error("Failed to reset project:", error);
-                alert("Could not reset project. See console for details.");
+                alert(t('app.resetError'));
             }
         }
-    }, []);
+    }, [t]);
 
     const handlePointClick = useCallback((styleId: string) => {
         setSelectedStyleId(styleId);
@@ -695,13 +704,13 @@ const App: React.FC = () => {
         if (!spaceData || isResuming) return;
     
         setIsResuming(true);
-        setResumeStatus('Starting generation...');
+        setResumeStatus(t('app.resumeStatusStart'));
         
         const stylesToUpdate = spaceData.styles.filter(s => s.images.length === 0);
         if (stylesToUpdate.length === 0) {
             setIsResuming(false);
             setIsGenerationPaused(false);
-            setResumeStatus('All images already generated.');
+            setResumeStatus(t('app.resumeStatusAllGenerated'));
             setTimeout(() => setResumeStatus(null), 3000);
             return;
         }
@@ -715,7 +724,7 @@ const App: React.FC = () => {
     
             for (let i = 0; i < stylesToUpdate.length; i++) {
                 const styleToUpdate = stylesToUpdate[i];
-                setResumeStatus(`Generating for ${styleToUpdate.name} (${i + 1}/${stylesToUpdate.length})`);
+                setResumeStatus(t('app.resumeStatusGenerating', { name: styleToUpdate.name, current: i + 1, total: stylesToUpdate.length}));
                 
                 try {
                     const prompt = `${styleToUpdate.generationPrompt}, in the style of '${styleToUpdate.name}'. Style description: ${styleToUpdate.description}`;
@@ -753,21 +762,21 @@ const App: React.FC = () => {
             
             if (failedAgain) {
                 setIsGenerationPaused(true);
-                setResumeStatus(`Generation paused. Try again later.`);
+                setResumeStatus(t('app.resumeStatusPaused'));
             } else {
                 setIsGenerationPaused(false);
-                setResumeStatus(`Generation complete!`);
+                setResumeStatus(t('app.resumeStatusComplete'));
                 setTimeout(() => setResumeStatus(null), 5000);
             }
     
         } catch (error) {
             console.error("An unexpected error occurred during resume:", error);
             setIsGenerationPaused(true);
-            setResumeStatus(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            setResumeStatus(t('app.resumeStatusError', { error: error instanceof Error ? error.message : 'Unknown error' }));
         } finally {
             setIsResuming(false);
         }
-    }, [spaceData, isResuming]);
+    }, [spaceData, isResuming, t]);
     
     if (isLoading || !spaceData) {
         return (
@@ -894,5 +903,14 @@ const App: React.FC = () => {
         </div>
     );
 };
+
+const App: React.FC = () => {
+    return (
+        <LanguageProvider>
+            <AppContent />
+        </LanguageProvider>
+    );
+};
+
 
 export default App;

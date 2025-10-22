@@ -5,6 +5,7 @@ import Modal from './common/Modal';
 import { AXIS_SCORE_MIN, AXIS_SCORE_MAX } from '../constants';
 import { PlusIcon, TrashIcon, SparklesIcon, StarIcon, RefreshCwIcon, BotMessageSquareIcon, CheckCircleIcon } from './icons';
 import { fetchImageAsBase64 } from '../utils/imageUtils';
+import { useTranslation } from '../i18n/i18n';
 
 interface StyleEditorModalProps {
     style: Style;
@@ -32,6 +33,7 @@ function parseDataUrl(dataUrl: string): { data: string; mimeType: string } {
 
 
 const StyleEditorModal: React.FC<StyleEditorModalProps> = ({ style, axes, onSave, onClose, onViewImages }) => {
+    const { t } = useTranslation();
     const [formData, setFormData] = useState<Style>(style);
     const [newImageUrl, setNewImageUrl] = useState('');
     const [imageAddStatus, setImageAddStatus] = useState({ loading: false, error: null as string | null });
@@ -69,12 +71,12 @@ const StyleEditorModal: React.FC<StyleEditorModalProps> = ({ style, axes, onSave
         try {
             const base64Url = await fetchImageAsBase64(newImageUrl);
             if (formData.images.includes(base64Url)) {
-                 throw new Error("This image has already been added.");
+                 throw new Error(t('styleEditorModal.imageAddErrorDuplicate'));
             }
             setFormData(prev => ({...prev, images: [...prev.images, base64Url]}));
             setNewImageUrl('');
         } catch (error) {
-            setImageAddStatus({ loading: false, error: error instanceof Error ? error.message : 'An unknown error occurred.' });
+            setImageAddStatus({ loading: false, error: error instanceof Error ? error.message : t('styleEditorModal.imageAddErrorGeneric') });
         } finally {
             setImageAddStatus(prev => ({ ...prev, loading: false }));
         }
@@ -130,7 +132,7 @@ const StyleEditorModal: React.FC<StyleEditorModalProps> = ({ style, axes, onSave
                         return { inlineData: parseDataUrl(url) };
                     } catch (e) {
                         console.warn(`Could not process data URL for AI:`, e);
-                        setGenerationError(`Could not process a local image. It might be corrupted.`);
+                        setGenerationError(t('styleEditorModal.corruptedImageError'));
                         return null;
                     }
                 }).filter((p): p is { inlineData: { data: string; mimeType: string; } } => p !== null);
@@ -146,7 +148,7 @@ const StyleEditorModal: React.FC<StyleEditorModalProps> = ({ style, axes, onSave
 
         } catch (error) {
             console.error("Description generation failed:", error);
-            setGenerationError(`Failed to generate description. ${error instanceof Error ? error.message : 'Please check console for details.'}`);
+            setGenerationError(t('styleEditorModal.generationError', { error: error instanceof Error ? error.message : 'Please check console for details.' }));
         } finally {
             setIsGeneratingDescription(false);
         }
@@ -172,7 +174,7 @@ const StyleEditorModal: React.FC<StyleEditorModalProps> = ({ style, axes, onSave
             setFormData(prev => ({ ...prev, description: response.text.trim() }));
         } catch (error) {
             console.error("Description rewrite failed:", error);
-            setGenerationError(`Failed to rewrite description. ${error instanceof Error ? error.message : 'Please check console for details.'}`);
+            setGenerationError(t('styleEditorModal.generationError', { error: error instanceof Error ? error.message : 'Please check console for details.' }));
         } finally {
             setIsRewritingDescription(false);
         }
@@ -236,7 +238,7 @@ Return your scores in a JSON object format, where the keys are the exact axis na
 
         } catch (error) {
             console.error("Score recalculation failed:", error);
-            setGenerationError(`Failed to recalculate scores. ${error instanceof Error ? error.message : 'Please check console for details.'}`);
+            setGenerationError(t('styleEditorModal.generationError', { error: error instanceof Error ? error.message : 'Please check console for details.' }));
         } finally {
             setIsRecalculatingScores(false);
         }
@@ -282,7 +284,7 @@ Return your scores in a JSON object format, where the keys are the exact axis na
 
         } catch (error) {
             console.error("Image generation failed:", error);
-            setGenerationError(`Failed to generate image. ${error instanceof Error ? error.message : 'Please check console for details.'}`);
+            setGenerationError(t('styleEditorModal.generationError', { error: error instanceof Error ? error.message : 'Please check console for details.' }));
         } finally {
             setIsGeneratingImage(false);
         }
@@ -295,19 +297,27 @@ Return your scores in a JSON object format, where the keys are the exact axis na
 
     const footer = (
         <div className="space-x-2">
-            <button onClick={onClose} className="px-4 py-2 rounded-md bg-gray-600 hover:bg-gray-500">Cancel</button>
-            <button onClick={handleSubmit} className="px-4 py-2 rounded-md bg-blue-600 hover:bg-blue-700">Save Style</button>
+            <button onClick={onClose} className="px-4 py-2 rounded-md bg-gray-600 hover:bg-gray-500">{t('styleEditorModal.cancelButton')}</button>
+            <button onClick={handleSubmit} className="px-4 py-2 rounded-md bg-blue-600 hover:bg-blue-700">{t('styleEditorModal.saveButton')}</button>
         </div>
     );
 
+    const rewriteDescriptionButtonText = selectedImageUrls.length > 1
+        ? t('styleEditorModal.rewriteDescriptionButtonPlural', { count: selectedImageUrls.length })
+        : t('styleEditorModal.rewriteDescriptionButton', { count: selectedImageUrls.length });
+
+    const recalculateScoresButtonText = selectedImageUrls.length > 1
+        ? t('styleEditorModal.recalculateScoresButtonPlural', { count: selectedImageUrls.length })
+        : t('styleEditorModal.recalculateScoresButton', { count: selectedImageUrls.length });
+
     return (
-        <Modal title={style.id ? 'Edit Style' : 'Create Style'} onClose={onClose} footer={footer}>
+        <Modal title={style.id ? t('styleEditorModal.editTitle') : t('styleEditorModal.createTitle')} onClose={onClose} footer={footer}>
             <form className="space-y-6" onSubmit={handleSubmit}>
                 {/* --- DEFINE SECTION --- */}
                 <fieldset className="space-y-4">
-                    <legend className="text-xl font-semibold mb-2">1. Define Style</legend>
+                    <legend className="text-xl font-semibold mb-2">{t('styleEditorModal.defineSectionTitle')}</legend>
                     <div>
-                        <label className="block text-sm font-medium text-gray-400">Style Name</label>
+                        <label className="block text-sm font-medium text-gray-400">{t('styleEditorModal.styleNameLabel')}</label>
                         <input
                             type="text"
                             name="name"
@@ -319,16 +329,16 @@ Return your scores in a JSON object format, where the keys are the exact axis na
                     </div>
                     <div>
                         <div className="flex justify-between items-center">
-                             <label className="block text-sm font-medium text-gray-400">Description</label>
+                             <label className="block text-sm font-medium text-gray-400">{t('styleEditorModal.descriptionLabel')}</label>
                              <button 
                                 type="button" 
                                 onClick={handleGenerateDescription}
                                 disabled={isGeneratingDescription || !formData.name}
-                                title="Generate description from name and reference images"
+                                title={t('styleEditorModal.generateDescriptionTooltip')}
                                 className="px-3 py-1 text-sm rounded-md bg-purple-600 hover:bg-purple-700 flex items-center disabled:bg-gray-500 disabled:cursor-not-allowed"
                             >
                                 <SparklesIcon className="mr-1 h-4 w-4"/>
-                                {isGeneratingDescription ? 'Generating...' : 'Generate'}
+                                {isGeneratingDescription ? t('styleEditorModal.generatingDescriptionButton') : t('styleEditorModal.generateDescriptionButton')}
                             </button>
                         </div>
                         <textarea
@@ -337,7 +347,7 @@ Return your scores in a JSON object format, where the keys are the exact axis na
                             onChange={handleInputChange}
                             rows={3}
                             className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md p-2"
-                            placeholder="Describe the style or generate one with AI..."
+                            placeholder={t('styleEditorModal.descriptionPlaceholder')}
                         />
                          {selectedImageUrls.length > 0 && (
                             <button
@@ -347,26 +357,26 @@ Return your scores in a JSON object format, where the keys are the exact axis na
                                 className="w-full mt-2 px-3 py-2 text-sm rounded-md bg-indigo-600 hover:bg-indigo-700 flex items-center justify-center disabled:bg-gray-500 disabled:cursor-not-allowed"
                             >
                                 <BotMessageSquareIcon className="mr-2 h-4 w-4" />
-                                {isRewritingDescription ? 'Rewriting...' : `Rewrite Description with AI (using ${selectedImageUrls.length} selected image${selectedImageUrls.length > 1 ? 's' : ''})`}
+                                {isRewritingDescription ? t('styleEditorModal.rewritingDescriptionButton') : rewriteDescriptionButtonText}
                             </button>
                         )}
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-gray-400">Generation Prompt</label>
+                        <label className="block text-sm font-medium text-gray-400">{t('styleEditorModal.generationPromptLabel')}</label>
                         <textarea
                             name="generationPrompt"
                             value={formData.generationPrompt}
                             onChange={handleInputChange}
                             rows={3}
                             className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md p-2"
-                            placeholder="What to generate in this style. e.g., 'A photorealistic cat wearing a tiny hat.'"
+                            placeholder={t('styleEditorModal.generationPromptPlaceholder')}
                         />
                     </div>
                 </fieldset>
                 
                  {/* --- SCORE SECTION --- */}
                 <fieldset className="space-y-3">
-                    <legend className="text-xl font-semibold">2. Score Style</legend>
+                    <legend className="text-xl font-semibold">{t('styleEditorModal.scoreSectionTitle')}</legend>
                      {selectedImageUrls.length > 0 && (
                         <button
                             type="button"
@@ -375,7 +385,7 @@ Return your scores in a JSON object format, where the keys are the exact axis na
                             className="w-full mb-3 px-3 py-2 text-sm rounded-md bg-indigo-600 hover:bg-indigo-700 flex items-center justify-center disabled:bg-gray-500 disabled:cursor-not-allowed"
                         >
                             <BotMessageSquareIcon className="mr-2 h-4 w-4" />
-                            {isRecalculatingScores ? 'Recalculating...' : `Recalculate Scores with AI (using ${selectedImageUrls.length} selected image${selectedImageUrls.length > 1 ? 's' : ''})`}
+                            {isRecalculatingScores ? t('styleEditorModal.recalculatingScoresButton') : recalculateScoresButtonText}
                         </button>
                     )}
                     {axes.map(axis => (
@@ -405,18 +415,18 @@ Return your scores in a JSON object format, where the keys are the exact axis na
                             </div>
                         </div>
                     ))}
-                     {axes.length === 0 && <p className="text-gray-400">No axes created yet. Add an axis to start scoring.</p>}
+                     {axes.length === 0 && <p className="text-gray-400">{t('styleEditorModal.noAxesWarning')}</p>}
                 </fieldset>
 
                 {/* --- GALLERY SECTION --- */}
                 <fieldset className="space-y-4">
-                     <legend className="text-xl font-semibold">3. Manage Gallery</legend>
-                     <p className="text-sm text-gray-400 -mt-2">Select images to use them as references for AI analysis.</p>
+                     <legend className="text-xl font-semibold">{t('styleEditorModal.gallerySectionTitle')}</legend>
+                     <p className="text-sm text-gray-400 -mt-2">{t('styleEditorModal.gallerySectionSubtitle')}</p>
                      <div>
                         <div className="flex space-x-2">
                             <input
                                 type="text"
-                                placeholder="Add reference image URL..."
+                                placeholder={t('styleEditorModal.addImagePlaceholder')}
                                 value={newImageUrl}
                                 onChange={(e) => setNewImageUrl(e.target.value)}
                                 onKeyDown={(e) => e.key === 'Enter' && handleAddImage()}
@@ -426,7 +436,7 @@ Return your scores in a JSON object format, where the keys are the exact axis na
                                 type="button" 
                                 onClick={handleAddImage} 
                                 disabled={imageAddStatus.loading}
-                                title="Add image from URL" 
+                                title={t('styleEditorModal.addImageTooltip')} 
                                 className="px-3 py-2 rounded-md bg-blue-600 hover:bg-blue-700 flex items-center justify-center disabled:bg-gray-500"
                             >
                                 {imageAddStatus.loading ? <RefreshCwIcon className="animate-spin" /> : <PlusIcon />}
@@ -439,11 +449,11 @@ Return your scores in a JSON object format, where the keys are the exact axis na
                             type="button" 
                             onClick={handleGenerateImage} 
                             disabled={isGeneratingImage}
-                            title="Generate a new image for this style using AI"
+                            title={t('styleEditorModal.generateImageTooltip')}
                             className="w-full px-3 py-2 rounded-md bg-green-600 hover:bg-green-700 flex items-center justify-center disabled:bg-gray-500 disabled:cursor-not-allowed"
                         >
                             <SparklesIcon className="mr-2"/>
-                            {isGeneratingImage ? 'Generating Image...' : 'Generate New Image for Style'}
+                            {isGeneratingImage ? t('styleEditorModal.generatingImageButton') : t('styleEditorModal.generateImageButton')}
                         </button>
                     </div>
                      {generationError && <p className="text-red-400 text-sm mt-1">{generationError}</p>}
@@ -459,13 +469,13 @@ Return your scores in a JSON object format, where the keys are the exact axis na
                                         onClick={() => onViewImages(formData.images, index)} 
                                     />
                                     <div className="absolute inset-0 bg-black bg-opacity-60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center space-x-2">
-                                        <button type="button" title="Select for AI Analysis" onClick={(e) => { e.stopPropagation(); handleToggleImageSelection(url); }} className={`p-2 rounded-full hover:bg-black/50 ${isSelected ? 'text-blue-400' : 'text-white'}`}>
+                                        <button type="button" title={t('styleEditorModal.selectForAITooltip')} onClick={(e) => { e.stopPropagation(); handleToggleImageSelection(url); }} className={`p-2 rounded-full hover:bg-black/50 ${isSelected ? 'text-blue-400' : 'text-white'}`}>
                                             <CheckCircleIcon />
                                         </button>
-                                        <button type="button" title="Set as cover" onClick={(e) => { e.stopPropagation(); handleSetCoverImage(index); }} className="p-2 text-yellow-400 hover:text-yellow-300 rounded-full hover:bg-black/50">
+                                        <button type="button" title={t('styleEditorModal.setAsCoverTooltip')} onClick={(e) => { e.stopPropagation(); handleSetCoverImage(index); }} className="p-2 text-yellow-400 hover:text-yellow-300 rounded-full hover:bg-black/50">
                                             <StarIcon isFilled={formData.coverImageIndex === index} />
                                         </button>
-                                        <button type="button" title="Remove image" onClick={(e) => { e.stopPropagation(); handleRemoveImage(url); }} className="p-2 text-red-500 hover:text-red-400 rounded-full hover:bg-black/50">
+                                        <button type="button" title={t('styleEditorModal.removeImageTooltip')} onClick={(e) => { e.stopPropagation(); handleRemoveImage(url); }} className="p-2 text-red-500 hover:text-red-400 rounded-full hover:bg-black/50">
                                             <TrashIcon />
                                         </button>
                                     </div>

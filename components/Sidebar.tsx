@@ -1,8 +1,10 @@
+
 import React, { useState } from 'react';
 import { GoogleGenAI } from '@google/genai';
 import type { SpaceData, ProjectionMode } from '../types';
 import { findOptimalK } from '../utils/clustering';
 import { FileDownIcon, FileUpIcon, ListIcon, ListTree, RefreshCwIcon, ChevronDownIcon, SparklesIcon } from './icons';
+import { useTranslation } from '../i18n/i18n';
 
 interface SidebarProps {
     spaceData: SpaceData;
@@ -15,7 +17,8 @@ interface SidebarProps {
     
     // Generic Projection Props
     projectionAxisIds: string[];
-    setProjectionAxisIds: (ids: string[]) => void;
+    // FIX: Changed type to allow function updater for state
+    setProjectionAxisIds: React.Dispatch<React.SetStateAction<string[]>>;
     isClusteringEnabled: boolean;
     setIsClusteringEnabled: (enabled: boolean) => void;
     clusterCount: number;
@@ -64,6 +67,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     resumeStatus,
     onResumeGeneration,
 }) => {
+    const { t, language, setLanguage } = useTranslation();
     const [isNamingClusters, setIsNamingClusters] = useState(false);
     const [isCalculatingK, setIsCalculatingK] = useState(false);
 
@@ -81,7 +85,7 @@ const Sidebar: React.FC<SidebarProps> = ({
 
     const handleCalculateK = async () => {
         if (!projectionData || Object.keys(projectionData).length === 0) {
-            alert(`${projectionMode.toUpperCase()} data not available. Please wait for the projection to be calculated.`);
+            alert(t('sidebar.projectionDataUnavailable', { mode: projectionMode.toUpperCase() }));
             return;
         }
         setIsCalculatingK(true);
@@ -92,14 +96,14 @@ const Sidebar: React.FC<SidebarProps> = ({
             const pointsForClustering: number[][] = Object.values(projectionData);
             const maxK = Math.min(15, pointsForClustering.length - 1);
             if (maxK < 2) {
-                 alert("Not enough styles to calculate a cluster count.");
+                 alert(t('sidebar.notEnoughStylesForK'));
                  return;
             }
             const suggestedK = await findOptimalK(pointsForClustering, 2, maxK);
             setClusterCount(suggestedK);
         } catch (error) {
             console.error("Failed to calculate K:", error);
-            alert("Could not calculate an optimal number of clusters.");
+            alert(t('sidebar.kCalculationError'));
         } finally {
             setIsCalculatingK(false);
         }
@@ -174,7 +178,7 @@ Based on the common themes, aesthetics, and scores, what is a fitting name for t
     
         } catch (error) {
             console.error("Failed to name clusters:", error);
-            alert(`Failed to name clusters. ${error instanceof Error ? error.message : 'See console for details.'}`);
+            alert(t('sidebar.clusterNamingError', { error: error instanceof Error ? error.message : 'See console for details.' }));
         } finally {
             setIsNamingClusters(false);
         }
@@ -185,13 +189,13 @@ Based on the common themes, aesthetics, and scores, what is a fitting name for t
         const availableAxes = spaceData.axes.filter(ax => !otherSelectedAxes.includes(ax.id));
         return (
             <div key={index} className="flex flex-col">
-                <label className="text-sm font-medium text-gray-400 mb-1">{label} Axis</label>
+                <label className="text-sm font-medium text-gray-400 mb-1">{label}</label>
                 <select
                     value={activeAxisIds[index] || 'none'}
                     onChange={(e) => handleAxisChange(index, e.target.value)}
                     className="bg-gray-700 border border-gray-600 rounded-md p-2 text-sm focus:ring-blue-500 focus:border-blue-500"
                 >
-                    <option value="none">-- None --</option>
+                    <option value="none">{t('sidebar.noneOption')}</option>
                     {availableAxes.map(axis => (
                         <option key={axis.id} value={axis.id}>{axis.name}</option>
                     ))}
@@ -204,32 +208,45 @@ Based on the common themes, aesthetics, and scores, what is a fitting name for t
 
     return (
         <aside className="w-80 bg-gray-800 p-4 flex flex-col space-y-4 overflow-y-auto">
-            <h1 className="text-2xl font-bold text-center">Style Visualizer</h1>
+            <h1 className="text-2xl font-bold text-center">{t('sidebar.title')}</h1>
             
+             {/* Language Control */}
+            <div className="bg-gray-700 p-3 rounded-lg">
+                <label className="text-sm font-medium text-gray-400 mb-1 block">{t('sidebar.languageLabel')}</label>
+                <select
+                    value={language}
+                    onChange={(e) => setLanguage(e.target.value as 'en' | 'ru')}
+                    className="w-full bg-gray-600 border border-gray-500 rounded-md p-2 text-sm focus:ring-blue-500 focus:border-blue-500"
+                >
+                    <option value="en">English</option>
+                    <option value="ru">Русский</option>
+                </select>
+            </div>
+
             {/* Project Controls */}
             <div className="bg-gray-700 p-3 rounded-lg">
-                <h2 className="text-lg font-semibold mb-2 flex items-center"><ListIcon className="mr-2" /> Project</h2>
+                <h2 className="text-lg font-semibold mb-2 flex items-center"><ListIcon className="mr-2" /> {t('sidebar.projectTitle')}</h2>
                 <div className="grid grid-cols-3 gap-2">
                     <button onClick={onLoadProject} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-md text-sm flex items-center justify-center">
-                        <FileUpIcon className="mr-1" /> Load
+                        <FileUpIcon className="mr-1" /> {t('sidebar.loadButton')}
                     </button>
                     <button onClick={onSaveProject} className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-3 rounded-md text-sm flex items-center justify-center">
-                        <FileDownIcon className="mr-1" /> Save
+                        <FileDownIcon className="mr-1" /> {t('sidebar.saveButton')}
                     </button>
                     <button onClick={onResetProject} className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-3 rounded-md text-sm flex items-center justify-center">
-                        <RefreshCwIcon className="mr-1" /> Reset
+                        <RefreshCwIcon className="mr-1" /> {t('sidebar.resetButton')}
                     </button>
                 </div>
                 {isGenerationPaused && (
                     <div className="mt-2 text-center">
-                        <p className="text-sm text-yellow-400 mb-2">Initial image generation is paused.</p>
+                        <p className="text-sm text-yellow-400 mb-2">{t('sidebar.generationPaused')}</p>
                         <button 
                             onClick={onResumeGeneration}
                             disabled={isResuming}
                             className="w-full bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-3 rounded-md text-sm flex items-center justify-center disabled:bg-gray-500 disabled:cursor-not-allowed"
                         >
                             <RefreshCwIcon className={`mr-2 h-4 w-4 ${isResuming ? 'animate-spin' : ''}`} />
-                            {isResuming ? 'Resuming...' : 'Resume Generation'}
+                            {isResuming ? t('sidebar.resumingGenerationButton') : t('sidebar.resumeGenerationButton')}
                         </button>
                     </div>
                 )}
@@ -240,9 +257,9 @@ Based on the common themes, aesthetics, and scores, what is a fitting name for t
 
             {/* Visualization Controls */}
             <div className="bg-gray-700 p-3 rounded-lg space-y-3">
-                <h2 className="text-lg font-semibold flex items-center"><ListTree className="mr-2" /> View Controls</h2>
+                <h2 className="text-lg font-semibold flex items-center"><ListTree className="mr-2" /> {t('sidebar.viewControlsTitle')}</h2>
                 <div>
-                    <label className="text-sm font-medium text-gray-400 mb-1 block">Dimension</label>
+                    <label className="text-sm font-medium text-gray-400 mb-1 block">{t('sidebar.dimensionLabel')}</label>
                     <div className="flex space-x-2">
                         <button onClick={() => setDimension(1)} className={`flex-1 py-2 rounded-md ${dimension === 1 ? 'bg-blue-600' : 'bg-gray-600 hover:bg-gray-500'}`}>1D</button>
                         <button onClick={() => setDimension(2)} className={`flex-1 py-2 rounded-md ${dimension === 2 ? 'bg-blue-600' : 'bg-gray-600 hover:bg-gray-500'}`}>2D</button>
@@ -251,25 +268,25 @@ Based on the common themes, aesthetics, and scores, what is a fitting name for t
                 </div>
 
                 <div>
-                    <label className="text-sm font-medium text-gray-400 mb-1 block">Projection Mode</label>
+                    <label className="text-sm font-medium text-gray-400 mb-1 block">{t('sidebar.projectionModeLabel')}</label>
                     <div className="grid grid-cols-3 space-x-2">
-                        <button onClick={() => setProjectionMode('manual')} className={`py-2 rounded-md ${projectionMode === 'manual' ? 'bg-blue-600' : 'bg-gray-600 hover:bg-gray-500'}`}>Manual</button>
-                        <button onClick={() => setProjectionMode('umap')} className={`py-2 rounded-md ${projectionMode === 'umap' ? 'bg-blue-600' : 'bg-gray-600 hover:bg-gray-500'}`}>UMAP</button>
-                        <button onClick={() => setProjectionMode('pca')} className={`py-2 rounded-md ${projectionMode === 'pca' ? 'bg-blue-600' : 'bg-gray-600 hover:bg-gray-500'}`}>PCA</button>
+                        <button onClick={() => setProjectionMode('manual')} className={`py-2 rounded-md ${projectionMode === 'manual' ? 'bg-blue-600' : 'bg-gray-600 hover:bg-gray-500'}`}>{t('sidebar.manualMode')}</button>
+                        <button onClick={() => setProjectionMode('umap')} className={`py-2 rounded-md ${projectionMode === 'umap' ? 'bg-blue-600' : 'bg-gray-600 hover:bg-gray-500'}`}>{t('sidebar.umapMode')}</button>
+                        <button onClick={() => setProjectionMode('pca')} className={`py-2 rounded-md ${projectionMode === 'pca' ? 'bg-blue-600' : 'bg-gray-600 hover:bg-gray-500'}`}>{t('sidebar.pcaMode')}</button>
                     </div>
                 </div>
 
                 {projectionMode === 'manual' ? (
                     <>
-                        {renderAxisSelector(0, 'X')}
-                        {dimension >= 2 && renderAxisSelector(1, 'Y')}
-                        {dimension === 3 && renderAxisSelector(2, 'Z')}
+                        {renderAxisSelector(0, t('sidebar.xAxisLabel'))}
+                        {dimension >= 2 && renderAxisSelector(1, t('sidebar.yAxisLabel'))}
+                        {dimension === 3 && renderAxisSelector(2, t('sidebar.zAxisLabel'))}
                     </>
                 ) : (
                     <>
                         <details className="space-y-2" open>
                             <summary className="text-sm font-medium text-gray-400 cursor-pointer flex items-center">
-                                {projectionModeName} Source Axes ({projectionAxisIds.length} / {spaceData.axes.length})
+                                {t('sidebar.sourceAxesLabel', { mode: projectionModeName, count: projectionAxisIds.length, total: spaceData.axes.length })}
                                 <ChevronDownIcon className="ml-1" />
                             </summary>
                             <div className="max-h-32 overflow-y-auto bg-gray-900/50 p-2 rounded-md space-y-1 text-sm">
@@ -289,19 +306,19 @@ Based on the common themes, aesthetics, and scores, what is a fitting name for t
                         </details>
                         <div className="mt-3 pt-3 border-t border-gray-600 space-y-3">
                             <div className="flex items-center justify-between">
-                                <label htmlFor="filter-projection-calc" className="text-sm font-medium text-gray-400 cursor-pointer">Calculate on filtered styles</label>
+                                <label htmlFor="filter-projection-calc" className="text-sm font-medium text-gray-400 cursor-pointer">{t('sidebar.calculateOnFilteredLabel')}</label>
                                 <button
                                     id="filter-projection-calc"
                                     onClick={() => setIsProjectionCalculationFiltered(!isProjectionCalculationFiltered)}
                                     className={`relative inline-flex items-center h-6 rounded-full w-11 transition-colors ${isProjectionCalculationFiltered ? 'bg-blue-600' : 'bg-gray-600'}`}
                                     aria-pressed={isProjectionCalculationFiltered}
-                                    title="If enabled, UMAP/PCA is calculated only using the styles that pass the active filters."
+                                    title={t('sidebar.calculateOnFilteredTooltip')}
                                 >
                                     <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform ${isProjectionCalculationFiltered ? 'translate-x-6' : 'translate-x-1'}`} />
                                 </button>
                             </div>
                             <div className="flex items-center justify-between">
-                                <label htmlFor="enable-clustering" className="text-sm font-medium text-gray-400 cursor-pointer">Enable Clustering</label>
+                                <label htmlFor="enable-clustering" className="text-sm font-medium text-gray-400 cursor-pointer">{t('sidebar.enableClusteringLabel')}</label>
                                 <button
                                     id="enable-clustering"
                                     onClick={() => setIsClusteringEnabled(!isClusteringEnabled)}
@@ -314,7 +331,7 @@ Based on the common themes, aesthetics, and scores, what is a fitting name for t
                             {isClusteringEnabled && (
                                 <>
                                     <div>
-                                        <label htmlFor="cluster-count" className="text-sm font-medium text-gray-400 block mb-1">Number of Clusters</label>
+                                        <label htmlFor="cluster-count" className="text-sm font-medium text-gray-400 block mb-1">{t('sidebar.clusterCountLabel')}</label>
                                         <div className="flex items-center space-x-2">
                                             <input
                                                 type="number"
@@ -328,11 +345,11 @@ Based on the common themes, aesthetics, and scores, what is a fitting name for t
                                             <button 
                                                 onClick={handleCalculateK} 
                                                 disabled={isCalculatingK || !projectionData}
-                                                title="Calculate optimal k using Silhouette Score"
+                                                title={t('sidebar.calculateKTooltip')}
                                                 className="px-3 py-2 text-sm rounded-md bg-indigo-600 hover:bg-indigo-700 flex items-center disabled:bg-gray-500 disabled:cursor-not-allowed"
                                             >
                                                 <SparklesIcon className={`h-4 w-4 ${isCalculatingK ? 'animate-spin' : ''}`} />
-                                                <span className="ml-1">Calculate k</span>
+                                                <span className="ml-1">{t('sidebar.calculateKButton')}</span>
                                             </button>
                                         </div>
                                     </div>
@@ -342,7 +359,7 @@ Based on the common themes, aesthetics, and scores, what is a fitting name for t
                                         className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-3 rounded-md text-sm flex items-center justify-center disabled:bg-gray-500 disabled:cursor-not-allowed"
                                     >
                                         <SparklesIcon className={`mr-2 h-4 w-4 ${isNamingClusters ? 'animate-spin' : ''}`} />
-                                        {isNamingClusters ? 'Naming...' : 'Name Clusters with AI'}
+                                        {isNamingClusters ? t('sidebar.namingClustersButton') : t('sidebar.nameClustersButton')}
                                     </button>
                                 </>
                             )}

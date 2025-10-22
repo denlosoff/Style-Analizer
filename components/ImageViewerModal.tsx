@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import Modal from './common/Modal';
 import { ChevronLeftIcon, ChevronRightIcon } from './icons';
+import { useTranslation } from '../i18n/i18n';
 
 interface ImageViewerModalProps {
     images: string[];
@@ -9,6 +10,7 @@ interface ImageViewerModalProps {
 }
 
 const ImageViewerModal: React.FC<ImageViewerModalProps> = ({ images, onClose, initialIndex = 0 }) => {
+    const { t } = useTranslation();
     const [currentIndex, setCurrentIndex] = useState(initialIndex);
 
     const goToPrevious = () => {
@@ -24,7 +26,7 @@ const ImageViewerModal: React.FC<ImageViewerModalProps> = ({ images, onClose, in
     };
 
     return (
-        <Modal title={`Image Viewer (${currentIndex + 1} / ${images.length})`} onClose={onClose}>
+        <Modal title={t('imageViewerModal.title', { current: currentIndex + 1, total: images.length })} onClose={onClose}>
             <div className="relative h-[70vh]">
                 <div className="h-full w-full flex items-center justify-center">
                     <img 
