@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { GoogleGenAI } from '@google/genai';
+import { UMAP } from 'umap-js';
 import type { SpaceData, Style, Axis, ProjectionMode } from './types';
-import { INITIAL_DATA } from './constants';
+import { INITIAL_DATA, AXIS_SCORE_MIN, AXIS_SCORE_MAX } from './constants';
 import Sidebar from './components/Sidebar';
 import Visualization from './components/Visualization';
 import StyleEditorModal from './components/StyleEditorModal';
@@ -12,7 +13,9 @@ import ImageViewerModal from './components/ImageViewerModal';
 import { downloadJson, uploadJson } from './utils/fileUtils';
 import { getSpaceDataFromDB, setSpaceDataInDB, clearSpaceDataFromDB } from './utils/dbUtils';
 import { SparklesIcon } from './components/icons';
+import { kmeans } from './utils/clustering';
 
+const MIDPOINT_SCORE = (AXIS_SCORE_MAX + AXIS_SCORE_MIN) / 2;
 
 const App: React.FC = () => {
     const [spaceData, setSpaceData] = useState<SpaceData | null>(null);
@@ -21,11 +24,16 @@ const App: React.FC = () => {
     const [dimension, setDimension] = useState<1 | 2 | 3>(2);
     const [activeAxisIds, setActiveAxisIds] = useState<(string | null)[]>([null, null, null]);
     
-    // Visualization modes
+    // Visualization modes & UMAP state
     const [projectionMode, setProjectionMode] = useState<ProjectionMode>('manual');
     const [umapAxisIds, setUmapAxisIds] = useState<string[]>([]);
     const [isUmapClusteringEnabled, setIsUmapClusteringEnabled] = useState<boolean>(false);
     const [umapClusterCount, setUmapClusterCount] = useState<number>(5);
+    const [clusterAssignments, setClusterAssignments] = useState<number[] | null>(null);
+    const [umapClusterNames, setUmapClusterNames] = useState<Record<number, string>>({});
+    const [umapData, setUmapData] = useState<number[][] | null>(null);
+    const [isCalculatingUmap, setIsCalculatingUmap] = useState(false);
+    const [umapError, setUmapError] = useState<string | null>(null);
 
 
     const [selectedStyleId, setSelectedStyleId] = useState<string | null>(null);
@@ -158,11 +166,81 @@ const App: React.FC = () => {
         }
     }, [spaceData]);
 
+    // Cleanup UMAP state when mode changes
     useEffect(() => {
         if (projectionMode !== 'umap') {
             setIsUmapClusteringEnabled(false);
+            setUmapData(null);
+            setUmapError(null);
         }
     }, [projectionMode]);
+    
+    // Recalculate UMAP embedding when dependencies change
+    useEffect(() => {
+        if (projectionMode !== 'umap' || umapAxisIds.length === 0 || !spaceData) {
+            setUmapData(null);
+            setUmapError(null);
+            return;
+        }
+
+        const calculateUmap = async () => {
+            setIsCalculatingUmap(true);
+            setUmapData(null);
+            setUmapError(null);
+
+            const dataMatrix = spaceData.styles.map(style =>
+                umapAxisIds.map(axisId => style.scores[axisId] ?? MIDPOINT_SCORE)
+            );
+
+            if (dataMatrix.length < 3 || umapAxisIds.length < 2) {
+                setUmapError(`UMAP requires at least 3 styles and 2 source axes.`);
+                setIsCalculatingUmap(false);
+                return;
+            }
+            
+            try {
+                // Use a timeout to allow the loading state to render before blocking the main thread
+                await new Promise(resolve => setTimeout(resolve, 50));
+
+                const umap = new UMAP({
+                    nComponents: dimension,
+                    nNeighbors: Math.min(15, dataMatrix.length - 1),
+                    minDist: 0.1,
+                    spread: 1.0,
+                });
+                
+                const embedding = await umap.fitAsync(dataMatrix);
+                setUmapData(embedding);
+
+            } catch (error) {
+                console.error("UMAP calculation failed", error);
+                setUmapError(`UMAP calculation failed. See console for details.`);
+            } finally {
+                setIsCalculatingUmap(false);
+            }
+        };
+
+        calculateUmap();
+    }, [projectionMode, umapAxisIds, spaceData, dimension]);
+
+    // Recalculate clusters when dependencies change
+    useEffect(() => {
+        if (projectionMode === 'umap' && isUmapClusteringEnabled && umapData) {
+            if (umapData.length > umapClusterCount && umapClusterCount > 1) {
+                const { clusters } = kmeans(umapData, umapClusterCount);
+                setClusterAssignments(clusters);
+            } else {
+                setClusterAssignments(null);
+            }
+        } else {
+            setClusterAssignments(null);
+        }
+    }, [isUmapClusteringEnabled, umapClusterCount, umapData, projectionMode]);
+
+    const handleSetUmapClusterCount = (count: number) => {
+        setUmapClusterCount(count);
+        setUmapClusterNames({}); // Reset names when count changes
+    };
 
 
     const handleSaveStyle = (styleToSave: Style) => {
@@ -213,7 +291,7 @@ const App: React.FC = () => {
             delete newScores[axisId];
             return { ...style, scores: newScores };
         });
-        const newSpaceData = { axes: newAxes, styles: newStyles };
+        const newSpaceData = { ...spaceData, axes: newAxes, styles: newStyles };
         updateSpaceData(newSpaceData);
         setActiveAxisIds(prev => prev.map(id => id === axisId ? null : id));
         setUmapAxisIds(prev => prev.filter(id => id !== axisId));
@@ -394,7 +472,11 @@ const App: React.FC = () => {
                 isUmapClusteringEnabled={isUmapClusteringEnabled}
                 setIsUmapClusteringEnabled={setIsUmapClusteringEnabled}
                 umapClusterCount={umapClusterCount}
-                setUmapClusterCount={setUmapClusterCount}
+                setUmapClusterCount={handleSetUmapClusterCount}
+                clusterAssignments={clusterAssignments}
+                umapClusterNames={umapClusterNames}
+                setUmapClusterNames={setUmapClusterNames}
+                umapData={umapData}
                 selectedStyleId={selectedStyleId}
                 onOpenStyleModal={openStyleModal}
                 onOpenAxisModal={openAxisModal}
@@ -418,6 +500,11 @@ const App: React.FC = () => {
                     umapAxisIds={umapAxisIds}
                     isUmapClusteringEnabled={isUmapClusteringEnabled}
                     umapClusterCount={umapClusterCount}
+                    clusterAssignments={clusterAssignments}
+                    umapClusterNames={umapClusterNames}
+                    umapData={umapData}
+                    isCalculatingUmap={isCalculatingUmap}
+                    umapError={umapError}
                     selectedStyleId={selectedStyleId}
                     onPointClick={handlePointClick}
                     onPointDoubleClick={handlePointDoubleClick}

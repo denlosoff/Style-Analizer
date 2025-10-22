@@ -1,6 +1,8 @@
-import React from 'react';
-import type { SpaceData, ProjectionMode } from '../types';
-import { PlusIcon, TrashIcon, EditIcon, FileDownIcon, FileUpIcon, ListIcon, ListTree, RefreshCwIcon, ChevronDownIcon } from './icons';
+import React, { useState } from 'react';
+import { GoogleGenAI } from '@google/genai';
+import type { SpaceData, ProjectionMode, Style } from '../types';
+import { findOptimalK } from '../utils/clustering';
+import { PlusIcon, TrashIcon, EditIcon, FileDownIcon, FileUpIcon, ListIcon, ListTree, RefreshCwIcon, ChevronDownIcon, SparklesIcon } from './icons';
 
 interface SidebarProps {
     spaceData: SpaceData;
@@ -16,6 +18,10 @@ interface SidebarProps {
     setIsUmapClusteringEnabled: (enabled: boolean) => void;
     umapClusterCount: number;
     setUmapClusterCount: (count: number) => void;
+    clusterAssignments: number[] | null;
+    umapClusterNames: Record<number, string>;
+    setUmapClusterNames: (names: Record<number, string>) => void;
+    umapData: number[][] | null;
     selectedStyleId: string | null;
     setSelectedStyleId: (id: string | null) => void;
     onOpenStyleModal: (styleId: string | null) => void;
@@ -45,6 +51,10 @@ const Sidebar: React.FC<SidebarProps> = ({
     setIsUmapClusteringEnabled,
     umapClusterCount,
     setUmapClusterCount,
+    clusterAssignments,
+    umapClusterNames,
+    setUmapClusterNames,
+    umapData,
     selectedStyleId,
     setSelectedStyleId,
     onOpenStyleModal,
@@ -59,6 +69,9 @@ const Sidebar: React.FC<SidebarProps> = ({
     resumeStatus,
     onResumeGeneration,
 }) => {
+    const [isNamingClusters, setIsNamingClusters] = useState(false);
+    const [isCalculatingK, setIsCalculatingK] = useState(false);
+
     const handleAxisChange = (index: number, value: string) => {
         const newAxisIds = [...activeAxisIds];
         newAxisIds[index] = value === 'none' ? null : value;
@@ -69,6 +82,96 @@ const Sidebar: React.FC<SidebarProps> = ({
         setUmapAxisIds(prev =>
             prev.includes(axisId) ? prev.filter(id => id !== axisId) : [...prev, axisId]
         );
+    };
+
+    const handleCalculateK = async () => {
+        if (!umapData) {
+            alert("UMAP data not available. Please wait for the projection to be calculated.");
+            return;
+        }
+        setIsCalculatingK(true);
+        try {
+            // Use a timeout to allow the loading state to render before blocking the main thread
+            await new Promise(resolve => setTimeout(resolve, 50));
+            const maxK = Math.min(15, spaceData.styles.length - 1);
+            if (maxK < 2) {
+                 alert("Not enough styles to calculate a cluster count.");
+                 return;
+            }
+            const suggestedK = await findOptimalK(umapData, 2, maxK);
+            setUmapClusterCount(suggestedK);
+        } catch (error) {
+            console.error("Failed to calculate K:", error);
+            alert("Could not calculate an optimal number of clusters.");
+        } finally {
+            setIsCalculatingK(false);
+        }
+    };
+
+    const handleNameClusters = async () => {
+        if (!clusterAssignments || !spaceData) return;
+        setIsNamingClusters(true);
+        setUmapClusterNames({}); // Clear previous names
+    
+        try {
+            if (!process.env.API_KEY) throw new Error("API_KEY not found.");
+            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+            
+            const clusterGroups: Record<number, Style[]> = {};
+            spaceData.styles.forEach((style, index) => {
+                const clusterId = clusterAssignments[index];
+                if (clusterGroups[clusterId]) {
+                    clusterGroups[clusterId].push(style);
+                } else {
+                    clusterGroups[clusterId] = [style];
+                }
+            });
+    
+            const axesInfo = spaceData.axes.map(a => `- ${a.name}: ${a.description}`).join('\n');
+    
+            const namePromises = Object.entries(clusterGroups).map(async ([clusterId, stylesInCluster]) => {
+                const stylesInfo = stylesInCluster.slice(0, 10).map(s => { // Limit to 10 styles per cluster to keep prompt short
+                    const scoresInfo = umapAxisIds.map(axisId => {
+                        const axis = spaceData.axes.find(a => a.id === axisId);
+                        return `${axis?.name || 'Unknown Axis'}: ${s.scores[axisId] ?? 'N/A'}`;
+                    }).join(', ');
+                    return `- Style: ${s.name}\n  Description: ${s.description}\n  Scores: ${scoresInfo}`;
+                }).join('\n');
+    
+                const prompt = `You are an expert in art and design styles. Based on the following list of styles belonging to the same cluster, generate a short, descriptive, and insightful name for the cluster (3-5 words max).
+
+**Analysis Axes:**
+${axesInfo}
+
+**Cluster Styles:**
+${stylesInfo}
+
+Based on the common themes, aesthetics, and scores, what is a fitting name for this cluster? Only return the name, with no preamble.`;
+                
+                const response = await ai.models.generateContent({
+                    model: 'gemini-2.5-flash',
+                    contents: prompt,
+                });
+    
+                return {
+                    clusterId: parseInt(clusterId),
+                    name: response.text.trim().replace(/"/g, '') // Clean up quotes
+                };
+            });
+    
+            const results = await Promise.all(namePromises);
+            const newNames: Record<number, string> = {};
+            results.forEach(result => {
+                newNames[result.clusterId] = result.name;
+            });
+            setUmapClusterNames(newNames);
+    
+        } catch (error) {
+            console.error("Failed to name clusters:", error);
+            alert(`Failed to name clusters. ${error instanceof Error ? error.message : 'See console for details.'}`);
+        } finally {
+            setIsNamingClusters(false);
+        }
     };
 
     const renderAxisSelector = (index: number, label: string) => {
@@ -175,7 +278,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                                 ))}
                             </div>
                         </details>
-                        <div className="mt-3 pt-3 border-t border-gray-600">
+                        <div className="mt-3 pt-3 border-t border-gray-600 space-y-3">
                             <div className="flex items-center justify-between">
                                 <label htmlFor="enable-clustering" className="text-sm font-medium text-gray-400 cursor-pointer">Enable Clustering</label>
                                 <button
@@ -188,18 +291,39 @@ const Sidebar: React.FC<SidebarProps> = ({
                                 </button>
                             </div>
                             {isUmapClusteringEnabled && (
-                                <div className="mt-2">
-                                    <label htmlFor="cluster-count" className="text-sm font-medium text-gray-400 block mb-1">Number of Clusters</label>
-                                    <input
-                                        type="number"
-                                        id="cluster-count"
-                                        min="2"
-                                        max={Math.min(20, spaceData.styles.length - 1)}
-                                        value={umapClusterCount}
-                                        onChange={(e) => setUmapClusterCount(parseInt(e.target.value, 10) || 2)}
-                                        className="mt-1 w-full bg-gray-900/50 border border-gray-600 rounded-md p-2 text-sm"
-                                    />
-                                </div>
+                                <>
+                                    <div>
+                                        <label htmlFor="cluster-count" className="text-sm font-medium text-gray-400 block mb-1">Number of Clusters</label>
+                                        <div className="flex items-center space-x-2">
+                                            <input
+                                                type="number"
+                                                id="cluster-count"
+                                                min="2"
+                                                max={Math.min(20, spaceData.styles.length - 1)}
+                                                value={umapClusterCount}
+                                                onChange={(e) => setUmapClusterCount(parseInt(e.target.value, 10) || 2)}
+                                                className="flex-1 bg-gray-900/50 border border-gray-600 rounded-md p-2 text-sm"
+                                            />
+                                            <button 
+                                                onClick={handleCalculateK} 
+                                                disabled={isCalculatingK || !umapData}
+                                                title="Calculate optimal k using Silhouette Score"
+                                                className="px-3 py-2 text-sm rounded-md bg-indigo-600 hover:bg-indigo-700 flex items-center disabled:bg-gray-500 disabled:cursor-not-allowed"
+                                            >
+                                                <SparklesIcon className={`h-4 w-4 ${isCalculatingK ? 'animate-spin' : ''}`} />
+                                                <span className="ml-1">Calculate k</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={handleNameClusters}
+                                        disabled={isNamingClusters || !clusterAssignments}
+                                        className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-3 rounded-md text-sm flex items-center justify-center disabled:bg-gray-500 disabled:cursor-not-allowed"
+                                    >
+                                        <SparklesIcon className={`mr-2 h-4 w-4 ${isNamingClusters ? 'animate-spin' : ''}`} />
+                                        {isNamingClusters ? 'Naming...' : 'Name Clusters with AI'}
+                                    </button>
+                                </>
                             )}
                         </div>
                     </>

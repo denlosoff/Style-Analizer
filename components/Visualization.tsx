@@ -1,9 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 import * as d3 from 'd3';
-import { UMAP } from 'umap-js';
 import type { SpaceData, Style, Axis, ProjectionMode } from '../types';
 import { AXIS_SCORE_MIN, AXIS_SCORE_MAX } from '../constants';
-import { kmeans } from '../utils/clustering';
 
 interface VisualizationProps {
     spaceData: SpaceData;
@@ -12,6 +10,11 @@ interface VisualizationProps {
     umapAxisIds: string[];
     isUmapClusteringEnabled: boolean;
     umapClusterCount: number;
+    clusterAssignments: number[] | null;
+    umapClusterNames: Record<number, string>;
+    umapData: number[][] | null;
+    isCalculatingUmap: boolean;
+    umapError: string | null;
     selectedStyleId: string | null;
     dimension: 1 | 2 | 3;
     onPointClick: (styleId: string) => void;
@@ -27,9 +30,12 @@ const Visualization: React.FC<VisualizationProps> = ({
     spaceData,
     projectionMode,
     activeAxisIds,
-    umapAxisIds,
     isUmapClusteringEnabled,
-    umapClusterCount,
+    clusterAssignments,
+    umapClusterNames,
+    umapData,
+    isCalculatingUmap,
+    umapError,
     selectedStyleId,
     dimension,
     onPointClick,
@@ -39,67 +45,7 @@ const Visualization: React.FC<VisualizationProps> = ({
     const containerRef = useRef<HTMLDivElement | null>(null);
     const [rotation, setRotation] = useState({ x: 20, y: -30 });
 
-    const [umapData, setUmapData] = useState<number[][] | null>(null);
-    const [isCalculatingUmap, setIsCalculatingUmap] = useState(false);
-    const [umapError, setUmapError] = useState<string | null>(null);
-    const [clusterAssignments, setClusterAssignments] = useState<number[] | null>(null);
-
     const clusterColors = d3.scaleOrdinal(d3.schemeCategory10);
-
-    useEffect(() => {
-        if (projectionMode !== 'umap' || umapAxisIds.length === 0) {
-            setUmapData(null);
-            setUmapError(null);
-            setClusterAssignments(null);
-            return;
-        }
-
-        const calculateUmapAndClusters = async () => {
-            setIsCalculatingUmap(true);
-            setUmapData(null);
-            setUmapError(null);
-            setClusterAssignments(null);
-
-            const dataMatrix = spaceData.styles.map(style =>
-                umapAxisIds.map(axisId => style.scores[axisId] ?? MIDPOINT_SCORE)
-            );
-
-            if (dataMatrix.length < 3 || umapAxisIds.length < 2) {
-                setUmapError(`UMAP requires at least 3 styles and 2 source axes.`);
-                setIsCalculatingUmap(false);
-                return;
-            }
-            
-            try {
-                const umap = new UMAP({
-                    nComponents: dimension,
-                    nNeighbors: Math.min(15, dataMatrix.length - 1),
-                    minDist: 0.1,
-                    spread: 1.0,
-                });
-                
-                const embedding = await umap.fitAsync(dataMatrix);
-                setUmapData(embedding);
-
-                if (isUmapClusteringEnabled) {
-                    if (embedding.length > umapClusterCount && umapClusterCount > 1) {
-                        const { clusters } = kmeans(embedding, umapClusterCount);
-                        setClusterAssignments(clusters);
-                    } else {
-                        setClusterAssignments(null);
-                    }
-                }
-
-            } catch (error) {
-                console.error("UMAP calculation failed", error);
-                setUmapError(`UMAP calculation failed. See console for details.`);
-            } finally {
-                setIsCalculatingUmap(false);
-            }
-        };
-
-        calculateUmapAndClusters();
-    }, [projectionMode, umapAxisIds, spaceData.styles, dimension, isUmapClusteringEnabled, umapClusterCount]);
 
     useEffect(() => {
         if (!svgRef.current || !containerRef.current) return;
@@ -354,9 +300,30 @@ const Visualization: React.FC<VisualizationProps> = ({
             const drag = d3.drag().on('drag', (event) => setRotation(current => ({ y: current.y + event.dx * 0.5, x: current.x - event.dy * 0.5 })));
             svg.call(drag as any);
         }
-    }, [spaceData, activeAxisIds, selectedStyleId, onPointClick, onPointDoubleClick, dimension, rotation, projectionMode, umapAxisIds, umapData, isCalculatingUmap, umapError, clusterAssignments, clusterColors]);
+    }, [spaceData, activeAxisIds, selectedStyleId, onPointClick, onPointDoubleClick, dimension, rotation, projectionMode, umapData, isCalculatingUmap, umapError, clusterAssignments, clusterColors, umapClusterNames]);
 
-    return <div ref={containerRef} className="w-full h-full cursor-grab active:cursor-grabbing"><svg ref={svgRef}></svg></div>;
+    return (
+        <div ref={containerRef} className="w-full h-full cursor-grab active:cursor-grabbing relative">
+            <svg ref={svgRef}></svg>
+            {isUmapClusteringEnabled && clusterAssignments && (
+                <div className="absolute bottom-4 left-4 bg-gray-800 bg-opacity-80 p-3 rounded-lg text-white text-sm max-w-xs pointer-events-auto">
+                    <h4 className="font-bold mb-2">Cluster Legend</h4>
+                    <ul className="space-y-1">
+                        {/* FIX: Explicitly type the array from the Set to ensure correct type inference for sort and map. */}
+                        {Array.from<number>(new Set(clusterAssignments)).sort((a,b) => a - b).map(clusterId => (
+                            <li key={clusterId} className="flex items-center">
+                                <span 
+                                    className="w-4 h-4 rounded-full mr-2 border border-white/50 flex-shrink-0"
+                                    style={{ backgroundColor: clusterColors(clusterId.toString()) }}
+                                ></span>
+                                <span>{umapClusterNames[clusterId] || `Cluster ${clusterId + 1}`}</span>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            )}
+        </div>
+    );
 };
 
 export default Visualization;
