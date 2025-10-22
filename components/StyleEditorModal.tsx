@@ -146,7 +146,7 @@ const StyleEditorModal: React.FC<StyleEditorModalProps> = ({ style, axes, onSave
             }
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
             
-            const prompt = `A high-quality, artistic image representing the style of '${formData.name}'. ${formData.description}`;
+            const prompt = `${formData.generationPrompt}, in the style of '${formData.name}'. Style description: ${formData.description}`;
             
             const response = await ai.models.generateImages({
                 model: 'imagen-4.0-generate-001',
@@ -233,6 +233,17 @@ const StyleEditorModal: React.FC<StyleEditorModalProps> = ({ style, axes, onSave
                             rows={3}
                             className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md p-2"
                             placeholder="Describe the style or generate one with AI..."
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-400">Generation Prompt</label>
+                        <textarea
+                            name="generationPrompt"
+                            value={formData.generationPrompt}
+                            onChange={handleInputChange}
+                            rows={3}
+                            className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md p-2"
+                            placeholder="What to generate in this style. e.g., 'A photorealistic cat wearing a tiny hat.'"
                         />
                     </div>
                 </fieldset>

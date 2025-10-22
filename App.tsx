@@ -300,7 +300,7 @@ const App: React.FC = () => {
                     const style = initialStyles[i];
                     setLoadingMessage(`Generating image ${i + 1} of ${initialStyles.length}: ${style.name}`);
                     try {
-                        const prompt = `A high-quality, artistic photograph of a single cup in the style of '${style.name}'. Style description: ${style.description}`;
+                        const prompt = `${style.generationPrompt}, in the style of '${style.name}'. Style description: ${style.description}`;
                         const response = await ai.models.generateImages({
                             model: 'imagen-4.0-generate-001',
                             prompt: prompt,
@@ -580,7 +580,7 @@ const App: React.FC = () => {
             const style = spaceData.styles.find(s => s.id === styleId);
             if (style) setEditingStyle(style);
         } else {
-            setEditingStyle({ id: uuidv4(), name: 'New Style', scores: {}, images: [], description: '', coverImageIndex: 0 });
+            setEditingStyle({ id: uuidv4(), name: 'New Style', scores: {}, images: [], description: '', generationPrompt: 'A high-quality, artistic photograph of a single cup.', coverImageIndex: 0 });
         }
         setIsStyleModalOpen(true);
     }, [spaceData]);
@@ -665,7 +665,7 @@ const App: React.FC = () => {
                 setResumeStatus(`Generating for ${styleToUpdate.name} (${i + 1}/${stylesToUpdate.length})`);
                 
                 try {
-                    const prompt = `A high-quality, artistic photograph of a single cup in the style of '${styleToUpdate.name}'. Style description: ${styleToUpdate.description}`;
+                    const prompt = `${styleToUpdate.generationPrompt}, in the style of '${styleToUpdate.name}'. Style description: ${styleToUpdate.description}`;
                     const response = await ai.models.generateImages({
                         model: 'imagen-4.0-generate-001',
                         prompt: prompt,

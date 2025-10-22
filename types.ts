@@ -4,6 +4,7 @@ export interface Style {
     scores: Record<string, number>; // { axis_id: score }
     images: string[];
     description: string;
+    generationPrompt: string;
     coverImageIndex: number;
 }
 
