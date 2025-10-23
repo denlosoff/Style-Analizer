@@ -72,8 +72,21 @@ const Sidebar: React.FC<SidebarProps> = ({
     const [isCalculatingK, setIsCalculatingK] = useState(false);
 
     const handleAxisChange = (index: number, value: string) => {
+        const newAxisId = value === 'none' ? null : value;
         const newAxisIds = [...activeAxisIds];
-        newAxisIds[index] = value === 'none' ? null : value;
+
+        // Find if the selected axis is already in use in another dropdown
+        const conflictingIndex = activeAxisIds.findIndex(id => id === newAxisId);
+        
+        // If it is in use (and not in the current dropdown), swap them
+        if (newAxisId !== null && conflictingIndex > -1 && conflictingIndex !== index) {
+            // The value that was in the current dropdown is swapped to the conflicting one
+            newAxisIds[conflictingIndex] = newAxisIds[index]; 
+        }
+
+        // Set the new value for the current dropdown
+        newAxisIds[index] = newAxisId;
+
         setActiveAxisIds(newAxisIds);
     };
 
@@ -185,8 +198,6 @@ Based on the common themes, aesthetics, and scores, what is a fitting name for t
     };
 
     const renderAxisSelector = (index: number, label: string) => {
-        const otherSelectedAxes = activeAxisIds.filter((_, i) => i !== index);
-        const availableAxes = spaceData.axes.filter(ax => !otherSelectedAxes.includes(ax.id));
         return (
             <div key={index} className="flex flex-col">
                 <label className="text-sm font-medium text-gray-400 mb-1">{label}</label>
@@ -196,7 +207,7 @@ Based on the common themes, aesthetics, and scores, what is a fitting name for t
                     className="bg-gray-700 border border-gray-600 rounded-md p-2 text-sm focus:ring-blue-500 focus:border-blue-500"
                 >
                     <option value="none">{t('sidebar.noneOption')}</option>
-                    {availableAxes.map(axis => (
+                    {spaceData.axes.map(axis => (
                         <option key={axis.id} value={axis.id}>{axis.name}</option>
                     ))}
                 </select>

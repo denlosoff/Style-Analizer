@@ -1,4 +1,5 @@
 
+
 import React, { createContext, useContext, useState, useCallback, PropsWithChildren } from 'react';
 
 const en = {
@@ -250,7 +251,7 @@ const ru = {
     "axisNameLabel": "Название оси",
     "descriptionLabel": "Описание",
     "colorLabel": "Цвет",
-    "analyzeAndScoreButton": "перераспределить все стили по оси",
+    "analyzeAndScoreButton": "Анализировать и оценить все стили с помощью ИИ",
     "analyzingButton": "Анализ...",
     "analyzeAndScoreTooltip": "Использовать ИИ для автоматической оценки всех стилей на основе названия и описания этой оси.",
     "analysisSuccess": "Анализ завершен! Оценено стилей: {count}. Оценки будут применены при сохранении.",

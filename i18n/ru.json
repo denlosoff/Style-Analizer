@@ -1,3 +1,4 @@
+
 {
   "app": {
     "loadingMessage": "Загрузка данных проекта...",
@@ -66,7 +67,8 @@
     "selectZAxisMessage": "Выберите ось Z для 3D-визуализации.",
     "selectSourceAxesMessage": "Выберите исходные оси для проекции {mode}.",
     "clusterLegendTitle": "Легенда кластеров",
-    "clusterLabel": "Кластер {number}"
+    "clusterLabel": "Кластер {number}",
+    "stackTooltip": "Стопка из {count} стилей. Нажмите, чтобы развернуть."
   },
   "styleEditorModal": {
     "createTitle": "Создать стиль",
