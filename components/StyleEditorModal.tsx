@@ -223,12 +223,13 @@ Return your scores in a JSON object format, where the keys are the exact axis na
             const nameToIdMap = new Map(axes.map(a => [a.name, a.id]));
             const newScores = { ...formData.scores };
 
-            // FIX: Replaced Object.entries with a for...in loop to safely iterate over the parsed JSON object.
-            // This avoids type errors when `Object.entries` is used on an object of a general type.
             if (parsedScores && typeof parsedScores === 'object' && !Array.isArray(parsedScores)) {
                 for (const axisName in parsedScores) {
                     if (Object.prototype.hasOwnProperty.call(parsedScores, axisName)) {
-                        const score = (parsedScores as Record<string, unknown>)[axisName];
+                        // FIX: Cast `parsedScores` to `any` to allow indexing by string key `axisName`.
+                        // This resolves the "Type 'unknown' cannot be used as an index type" error, as `JSON.parse`
+                        // can be treated as returning `unknown` in strict environments.
+                        const score = (parsedScores as any)[axisName];
                         const axisId = nameToIdMap.get(axisName);
                         if (axisId && typeof score === 'number') {
                             // Clamp the score to the valid range just in case

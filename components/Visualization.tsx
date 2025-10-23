@@ -84,6 +84,8 @@ const Visualization: React.FC<VisualizationProps> = ({
 
         svg.selectAll('*').remove(); // Clear previous render
 
+        const defs = svg.append('defs');
+
         const g = svg.append('g')
             .attr('transform', `translate(${margin.left},${margin.top})`);
         
@@ -185,6 +187,19 @@ const Visualization: React.FC<VisualizationProps> = ({
         
         if (dimension < 3) {
             let xScale, yScale, xAxisLabel, yAxisLabel;
+
+            visiblePointsData.forEach(d => {
+                defs.append('pattern')
+                    .attr('id', `pattern-${d.id}`)
+                    .attr('width', 1)
+                    .attr('height', 1)
+                    .attr('patternContentUnits', 'objectBoundingBox')
+                    .append('image')
+                    .attr('href', d.coverImageUrl)
+                    .attr('width', 1)
+                    .attr('height', 1)
+                    .attr('preserveAspectRatio', 'xMidYMid slice');
+            });
             
             if (projectionMode === 'manual') {
                 const activeAxes = activeAxisIds.map(id => spaceData.axes.find(a => a.id === id)).filter((a): a is Axis => !!a);
@@ -227,9 +242,6 @@ const Visualization: React.FC<VisualizationProps> = ({
 
             const pointSize = (id: string) => selectedStyleId === id ? 40 : 30;
             const halfPointSize = (id: string) => pointSize(id) / 2;
-
-            g.append('defs').append('clipPath').attr('id', 'point-clip')
-                .append('circle').attr('cx', 15).attr('cy', 15).attr('r', 15);
 
             const groups = g.selectAll('g.point').data(uniquePointsData, (d: any) => d.id).join('g')
                 .attr('class', 'point')
@@ -278,8 +290,11 @@ const Visualization: React.FC<VisualizationProps> = ({
                 })
                 .attr('stroke-width', 3);
 
-            groups.append('image').attr('href', d => d.coverImageUrl).attr('width', d => pointSize(d.id)).attr('height', d => pointSize(d.id))
-                .attr('clip-path', 'url(#point-clip)').attr('transform', d => `scale(${pointSize(d.id)/30})`);
+            groups.append('circle')
+                .attr('cx', d => halfPointSize(d.id))
+                .attr('cy', d => halfPointSize(d.id))
+                .attr('r', d => halfPointSize(d.id))
+                .attr('fill', d => `url(#pattern-${d.id})`);
             
             groups.append('circle').attr('cx', d => halfPointSize(d.id)).attr('cy', d => halfPointSize(d.id)).attr('r', d => halfPointSize(d.id) + 2)
                 .attr('fill', 'none').attr('stroke', d => selectedStyleId === d.id ? 'white' : 'transparent').attr('stroke-width', 3);
@@ -351,8 +366,12 @@ const Visualization: React.FC<VisualizationProps> = ({
                 expandedNodes.transition().duration(300)
                     .attr('transform', d => `translate(${d.ex - nodeSize/2}, ${d.ey - nodeSize/2})`);
                 
-                expandedNodes.append('image').attr('href', d => d.coverImageUrl).attr('width', nodeSize).attr('height', nodeSize)
-                    .attr('clip-path', 'url(#point-clip)').attr('transform', `scale(${nodeSize/30})`);
+                expandedNodes.append('circle')
+                    .attr('cx', nodeSize / 2)
+                    .attr('cy', nodeSize / 2)
+                    .attr('r', nodeSize / 2)
+                    .attr('fill', d => `url(#pattern-${d.id})`);
+                    
                 expandedNodes.append('circle').attr('cx', nodeSize/2).attr('cy', nodeSize/2).attr('r', nodeSize/2 + 2)
                     .attr('fill', 'none').attr('stroke', d => selectedStyleId === d.id ? 'white' : 'transparent').attr('stroke-width', 2);
 
@@ -442,6 +461,19 @@ const Visualization: React.FC<VisualizationProps> = ({
             }
             const visiblePointsFor3D = allPointsFor3D.filter(p => filteredStyleIds.includes(p.id));
 
+            visiblePointsFor3D.forEach(d => {
+                defs.append('pattern')
+                    .attr('id', `pattern-${d.id}`)
+                    .attr('width', 1)
+                    .attr('height', 1)
+                    .attr('patternContentUnits', 'objectBoundingBox')
+                    .append('image')
+                    .attr('href', d.coverImageUrl)
+                    .attr('width', 1)
+                    .attr('height', 1)
+                    .attr('preserveAspectRatio', 'xMidYMid slice');
+            });
+
             const sinX = Math.sin(rotation.x * Math.PI / 180), cosX = Math.cos(rotation.x * Math.PI / 180);
             const sinY = Math.sin(rotation.y * Math.PI / 180), cosY = Math.cos(rotation.y * Math.PI / 180);
 
@@ -468,7 +500,6 @@ const Visualization: React.FC<VisualizationProps> = ({
             }).sort((a, b) => (a.type === 'point' ? a.pz : a.z) - (b.type === 'point' ? b.pz : b.z));
 
 
-            svg.append('defs').append('clipPath').attr('id', 'point-clip-3d').append('circle').attr('cx', 0).attr('cy', 0).attr('r', 15);
             const selection = g.selectAll('g.element').data(elements, (d: ProjectedElement) => d.id);
             selection.exit().remove();
             const enter = selection.enter().append('g').attr('class', 'element');
@@ -497,7 +528,7 @@ const Visualization: React.FC<VisualizationProps> = ({
             
             pointGroups.append('circle').attr('class', 'stack-indicator-3d');
             pointGroups.append('circle').attr('class', 'cluster-ring').attr('fill', 'none');
-            pointGroups.append('image').attr('clip-path', 'url(#point-clip-3d)');
+            pointGroups.append('circle').attr('class', 'point-image-3d');
             pointGroups.append('circle').attr('class', 'selection-ring').attr('fill', 'none');
             pointGroups.append('text').attr('class', 'label').attr('text-anchor', 'middle').attr('fill', 'white').style('pointer-events', 'none');
             const merged = selection.merge(enter);
@@ -526,8 +557,10 @@ const Visualization: React.FC<VisualizationProps> = ({
                     return clusterColors(clusterAssignments[originalIndex].toString());
                 });
 
-            mergedPoints.select<SVGImageElement>('image').attr('href', d => d.coverImageUrl).attr('x', d => -pointSize3D(d)).attr('y', d => -pointSize3D(d))
-                .attr('width', d => pointSize3D(d) * 2).attr('height', d => pointSize3D(d) * 2);
+            mergedPoints.select<SVGCircleElement>('circle.point-image-3d')
+                .attr('r', d => pointSize3D(d))
+                .attr('fill', d => `url(#pattern-${d.id})`);
+
             mergedPoints.select<SVGCircleElement>('circle.selection-ring').attr('r', d => pointSize3D(d) + 2).attr('stroke', d => selectedStyleId === d.id ? 'white' : 'transparent').attr('stroke-width', 3);
             mergedPoints.select<SVGTextElement>('text.label').attr('y', d => -pointSize3D(d) - 8).attr('font-size', d => 12 * (0.8 + (d.pz + 1) / 2 * 0.4)).text(d => {
                  const stack = projectedAndGroupedMap.get(`${d.px.toFixed(2)},${d.py.toFixed(2)}`) || [];
@@ -577,8 +610,11 @@ const Visualization: React.FC<VisualizationProps> = ({
                     });
 
                 expandedNodes.transition().duration(300).attr('transform', d => `translate(${d.ex - nodeSize/2}, ${d.ey - nodeSize/2})`);
-                expandedNodes.append('image').attr('href', d => d.coverImageUrl).attr('width', nodeSize).attr('height', nodeSize)
-                    .attr('clip-path', 'url(#point-clip)').attr('transform', `scale(${nodeSize/30})`);
+                expandedNodes.append('circle')
+                    .attr('cx', nodeSize / 2)
+                    .attr('cy', nodeSize / 2)
+                    .attr('r', nodeSize / 2)
+                    .attr('fill', d => `url(#pattern-${d.id})`);
                 expandedNodes.append('circle').attr('cx', nodeSize/2).attr('cy', nodeSize/2).attr('r', nodeSize/2 + 2)
                     .attr('fill', 'none').attr('stroke', d => selectedStyleId === d.id ? 'white' : 'transparent').attr('stroke-width', 2);
                     

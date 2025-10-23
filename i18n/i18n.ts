@@ -61,7 +61,11 @@ const en = {
     "axesListTitle": "Axes ({count})",
     "stylesListTitle": "Styles ({count})",
     "stylesListFilteredTitle": "Styles ({filteredCount} / {totalCount})",
-    "addFilterError": "Create an axis before adding a filter."
+    "addFilterError": "Create an axis before adding a filter.",
+    "editStyleTooltip": "Edit {styleName}",
+    "viewGalleryText": "View Gallery",
+    "noImageAvailableText": "No image available",
+    "noDescriptionText": "No description provided."
   },
   "visualization": {
     "calculatingProjectionMessage": "Calculating {mode} projection...",
@@ -194,7 +198,11 @@ const ru = {
     "axesListTitle": "Оси ({count})",
     "stylesListTitle": "Стили ({count})",
     "stylesListFilteredTitle": "Стили ({filteredCount} / {totalCount})",
-    "addFilterError": "Создайте ось перед добавлением фильтра."
+    "addFilterError": "Создайте ось перед добавлением фильтра.",
+    "editStyleTooltip": "Редактировать {styleName}",
+    "viewGalleryText": "Смотреть галерею",
+    "noImageAvailableText": "Нет изображения",
+    "noDescriptionText": "Описание не предоставлено."
   },
   "visualization": {
     "calculatingProjectionMessage": "Расчет проекции {mode}...",

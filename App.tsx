@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { v4 as uuidvv4 } from 'uuid';
 import { GoogleGenAI } from '@google/genai';
@@ -33,6 +34,7 @@ interface RightSidebarProps {
     filters: Filter[];
     setFilters: (filters: Filter[]) => void;
     filteredStyleIds: string[];
+    onViewImages: (images: string[], index: number) => void;
 }
 
 const RightSidebar: React.FC<RightSidebarProps> = ({
@@ -48,8 +50,10 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
     filters,
     setFilters,
     filteredStyleIds,
+    onViewImages,
 }) => {
     const { t } = useTranslation();
+    const selectedStyle = spaceData.styles.find(s => s.id === selectedStyleId);
 
     const handleAddFilter = () => {
         const firstAxisId = spaceData.axes[0]?.id;
@@ -60,7 +64,6 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
         setFilters([
             ...filters,
             {
-// FIX: Corrected typo from uuidv4 to uuidvv4 to match the import alias.
                 id: uuidvv4(),
                 axisId: firstAxisId,
                 min: AXIS_SCORE_MIN,
@@ -156,6 +159,43 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                     ))}
                 </ul>
             </div>
+
+            {/* NEW: Style Details Section */}
+            {selectedStyle && (
+                <div className="bg-gray-700 p-3 rounded-lg space-y-3">
+                    <div className="flex justify-between items-center">
+                        <h3 className="text-xl font-bold truncate pr-2" title={selectedStyle.name}>{selectedStyle.name}</h3>
+                        <button 
+                            onClick={() => onOpenStyleModal(selectedStyle.id)} 
+                            className="p-1 text-gray-400 hover:text-white flex-shrink-0"
+                            title={t('rightSidebar.editStyleTooltip', { styleName: selectedStyle.name })}
+                        >
+                            <EditIcon />
+                        </button>
+                    </div>
+                    {selectedStyle.images.length > 0 ? (
+                        <div className="relative group">
+                             <img
+                                src={selectedStyle.images[selectedStyle.coverImageIndex ?? 0]}
+                                alt={selectedStyle.name}
+                                className="w-full h-48 object-cover rounded-md cursor-pointer"
+                                onClick={() => onViewImages(selectedStyle.images, selectedStyle.coverImageIndex ?? 0)}
+                            />
+                            <div 
+                                className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer rounded-md"
+                                onClick={() => onViewImages(selectedStyle.images, selectedStyle.coverImageIndex ?? 0)}
+                            >
+                                <span className="text-white font-semibold">{t('rightSidebar.viewGalleryText')}</span>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="w-full h-48 bg-gray-800 rounded-md flex items-center justify-center text-gray-500">
+                            <span>{t('rightSidebar.noImageAvailableText')}</span>
+                        </div>
+                    )}
+                    <p className="text-sm text-gray-300 max-h-24 overflow-y-auto pr-1">{selectedStyle.description || t('rightSidebar.noDescriptionText')}</p>
+                </div>
+            )}
 
             {/* Styles List */}
             <div className="bg-gray-700 p-3 rounded-lg flex-1 flex flex-col min-h-0">
@@ -284,73 +324,34 @@ const AppContent: React.FC = () => {
                 if (savedData) {
                     setSpaceData(savedData);
                     const hasMissingImages = savedData.styles.some(s => s.images.length === 0);
-                    if (hasMissingImages) {
+                    // Only show the resume button if there are missing images AND an API key is available.
+                    if (hasMissingImages && process.env.API_KEY) {
                         setIsGenerationPaused(true);
                     }
                     setIsLoading(false);
                     return;
                 }
         
+                // No saved data, so load initial data without images.
                 setLoadingMessage(t('app.initializingMessage'));
-                if (!process.env.API_KEY) {
-                    console.warn("API_KEY not found. Using data without images. Please set the API_KEY environment variable for image generation.");
+
+                const initialDataWithEmptyImages = {
+                    ...INITIAL_DATA,
+                    styles: INITIAL_DATA.styles.map(s => ({ ...s, images: [] }))
+                };
+                await updateSpaceData(initialDataWithEmptyImages);
+                
+                // If an API key exists, make generation optional via the resume button.
+                // Otherwise, show a warning.
+                if (process.env.API_KEY) {
+                    setIsGenerationPaused(true);
+                } else {
+                    console.warn("API_KEY not found. Image generation is disabled. Please set the API_KEY environment variable to enable it.");
                     alert(t('app.apiKeyWarning'));
-                    const dataWithEmptyImages = {
-                        ...INITIAL_DATA,
-                        styles: INITIAL_DATA.styles.map(s => ({ ...s, images: [] }))
-                    };
-                    await updateSpaceData(dataWithEmptyImages);
-                    setIsLoading(false);
-                    return;
                 }
-
-                const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-                const initialStyles = [...INITIAL_DATA.styles];
-                const processedStyles: Style[] = [];
-                let generationFailed = false;
-
-                for (let i = 0; i < initialStyles.length; i++) {
-                    const style = initialStyles[i];
-                    setLoadingMessage(t('app.generatingImageMessage', { current: i + 1, total: initialStyles.length, name: style.name }));
-                    try {
-                        const prompt = `${style.generationPrompt}, in the style of '${style.name}'. Style description: ${style.description}`;
-                        const response = await ai.models.generateImages({
-                            model: 'imagen-4.0-generate-001',
-                            prompt: prompt,
-                            config: { numberOfImages: 1, outputMimeType: 'image/png', aspectRatio: '1:1' }
-                        });
-
-                        if (response.generatedImages && response.generatedImages.length > 0) {
-                            const base64ImageBytes = response.generatedImages[0].image.imageBytes;
-                            const imageUrl = `data:image/png;base64,${base64ImageBytes}`;
-                            processedStyles.push({ ...style, images: [imageUrl], coverImageIndex: 0 });
-                        } else {
-                             console.warn(`Image generation skipped for ${style.name}: No image returned.`);
-                            processedStyles.push({ ...style, images: [] });
-                        }
-                    } catch (error) {
-                        console.error(`Failed to generate image for ${style.name}, pausing generation:`, error);
-                        processedStyles.push({ ...style, images: [] }); // Add the failed one without image
-                        setIsGenerationPaused(true);
-                        generationFailed = true;
-                        break; // Exit the loop
-                    }
-                    // Add a delay to avoid hitting API rate limits
-                    await new Promise(resolve => setTimeout(resolve, 1100));
-                }
-
-                let finalStyles = processedStyles;
-                if (generationFailed) {
-                    // If we broke out, add the remaining unprocessed styles
-                    const remainingStyles = INITIAL_DATA.styles.slice(processedStyles.length).map(s => ({ ...s, images: [] }));
-                    finalStyles = [...processedStyles, ...remainingStyles];
-                }
-
-                const newSpaceData = { ...INITIAL_DATA, axes: INITIAL_DATA.axes, styles: finalStyles };
-                await updateSpaceData(newSpaceData);
 
             } catch (error) {
-                console.error("Failed to initialize app with generated images, using default data.", error);
+                console.error("Failed to initialize app, using default data.", error);
                 alert(t('app.initializationError'));
                 const dataWithEmptyImages = {
                     ...INITIAL_DATA,
@@ -885,6 +886,7 @@ const AppContent: React.FC = () => {
                 filters={filters}
                 setFilters={setFilters}
                 filteredStyleIds={filteredStyleIds}
+                onViewImages={(images, initialIndex) => setViewingImages({images, initialIndex})}
             />
             
             {isStyleModalOpen && editingStyle && (

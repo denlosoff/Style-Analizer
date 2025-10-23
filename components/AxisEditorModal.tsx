@@ -87,14 +87,17 @@ Please provide your scores in a JSON array format. Each object in the array shou
             const newScores: Record<string, number> = {};
             let scoredCount = 0;
 
-            // FIX: Added a check to ensure the parsed response is an array before iterating.
+            // FIX: Ensure the parsed response is an array before iterating.
+            // Also, cast individual results to `any` to prevent type errors in strict environments.
             if (Array.isArray(parsedResults)) {
-                const results = parsedResults as { styleName: string; score: number }[];
-                for (const result of results) {
-                    const styleId = styleNameToIdMap.get(result.styleName);
-                    if (styleId && typeof result.score === 'number') {
-                        newScores[styleId] = Math.max(AXIS_SCORE_MIN, Math.min(AXIS_SCORE_MAX, result.score));
-                        scoredCount++;
+                for (const result of parsedResults) {
+                    const item = result as any;
+                    if (item && typeof item.styleName === 'string') {
+                        const styleId = styleNameToIdMap.get(item.styleName);
+                        if (styleId && typeof item.score === 'number') {
+                            newScores[styleId] = Math.max(AXIS_SCORE_MIN, Math.min(AXIS_SCORE_MAX, item.score));
+                            scoredCount++;
+                        }
                     }
                 }
             }
