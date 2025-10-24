@@ -126,13 +126,17 @@ const en = {
     "analyzingButton": "Analyzing...",
     "analyzeAndScoreTooltip": "Use AI to automatically score all styles based on this axis's name and description.",
     "analysisSuccess": "Analysis complete! {count} styles scored. Scores will be applied when you save.",
-    "analysisError": "Analysis failed: {error}"
+    "analysisError": "Analysis failed: {error}",
+    "manuallyScoreButton": "Manually Score All Styles",
+    "manuallyScoreTooltip": "Save the current axis details and open a wizard to score each style manually."
   },
   "scoringWizardModal": {
     "title": "Score Styles for \"{axisName}\"",
     "description": "Set a score from {min} to {max} for each style on the new axis.",
     "applyScoresButton": "Apply Scores",
-    "cancelButton": "Cancel"
+    "cancelButton": "Cancel",
+    "viewImagesTooltip": "View images for {styleName}",
+    "noImagesTooltip": "No images available for this style"
   },
   "imageViewerModal": {
     "title": "Image Viewer ({current} / {total})"
@@ -263,13 +267,17 @@ const ru = {
     "analyzingButton": "Анализ...",
     "analyzeAndScoreTooltip": "Использовать ИИ для автоматической оценки всех стилей на основе названия и описания этой оси.",
     "analysisSuccess": "Анализ завершен! Оценено стилей: {count}. Оценки будут применены при сохранении.",
-    "analysisError": "Ошибка анализа: {error}"
+    "analysisError": "Ошибка анализа: {error}",
+    "manuallyScoreButton": "Оценить все стили вручную",
+    "manuallyScoreTooltip": "Сохранить текущие данные оси и открыть мастер для ручной оценки каждого стиля."
   },
   "scoringWizardModal": {
     "title": "Оценка стилей для \"{axisName}\"",
     "description": "Установите оценку от {min} до {max} для каждого стиля на новой оси.",
     "applyScoresButton": "Применить оценки",
-    "cancelButton": "Отмена"
+    "cancelButton": "Отмена",
+    "viewImagesTooltip": "Посмотреть изображения для {styleName}",
+    "noImagesTooltip": "Для этого стиля нет изображений"
   },
   "imageViewerModal": {
     "title": "Просмотр изображений ({current} / {total})"
@@ -323,8 +331,6 @@ export const LanguageProvider: React.FC<PropsWithChildren<{}>> = ({ children }) 
         return translation;
     }, [language]);
     
-    // FIX: Replaced JSX with React.createElement to be compatible with a .ts file extension.
-    // This resolves a series of parsing errors caused by using JSX in a non-TSX file.
     return React.createElement(
         LanguageContext.Provider,
         { value: { language, setLanguage, t } },

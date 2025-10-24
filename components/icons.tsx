@@ -74,3 +74,11 @@ export const CheckCircleIcon: React.FC<{className?: string}> = ({className}) => 
 export const BotMessageSquareIcon: React.FC<{className?: string}> = ({className}) => (
     <svg {...iconProps} className={className}><path d="M12 6V2H8"/><path d="m8 18-4 4V8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2Z"/><path d="M2 12h2"/><path d="M9 11v2"/><path d="M15 11v2"/><path d="M20 12h2"/></svg>
 );
+
+export const ListChecksIcon: React.FC<{className?: string}> = ({className}) => (
+    <svg {...iconProps} className={className}><path d="M10 6h11"/><path d="M10 12h11"/><path d="M10 18h11"/><path d="M4 6.5 5 7.5l2-2"/><path d="m4 12.5 1 1 2-2"/><path d="m4 18.5 1 1 2-2"/></svg>
+);
+
+export const CameraIcon: React.FC<{className?: string}> = ({className}) => (
+    <svg {...iconProps} className={className}><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
+);
