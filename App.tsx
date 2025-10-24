@@ -35,7 +35,7 @@ interface RightSidebarProps {
     filters: Filter[];
     setFilters: (filters: Filter[]) => void;
     filteredStyleIds: string[];
-    onViewImages: (images: string[], index: number) => void;
+    onViewImages: (images: string[], index: number, generatedImageUrls?: string[]) => void;
     onOpenCorrelationModal: () => void;
 }
 
@@ -232,7 +232,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                                 src={selectedStyle.images[selectedStyle.coverImageIndex ?? 0]}
                                 alt={selectedStyle.name}
                                 className="w-full h-48 object-cover rounded-md cursor-pointer"
-                                onClick={() => onViewImages(selectedStyle.images, selectedStyle.coverImageIndex ?? 0)}
+                                onClick={() => onViewImages(selectedStyle.images, selectedStyle.coverImageIndex ?? 0, selectedStyle.generatedImageUrls)}
                             />
                             {selectedStyle.generatedImageUrls?.includes(selectedStyle.images[selectedStyle.coverImageIndex ?? 0]) && (
                                 <div className="absolute bottom-1 right-1 bg-purple-600 text-white text-xs font-bold px-1.5 py-0.5 rounded pointer-events-none">
@@ -241,7 +241,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                             )}
                             <div 
                                 className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer rounded-md"
-                                onClick={() => onViewImages(selectedStyle.images, selectedStyle.coverImageIndex ?? 0)}
+                                onClick={() => onViewImages(selectedStyle.images, selectedStyle.coverImageIndex ?? 0, selectedStyle.generatedImageUrls)}
                             >
                                 <span className="text-white font-semibold">{t('rightSidebar.viewGalleryText')}</span>
                             </div>
@@ -358,7 +358,7 @@ const AppContent: React.FC = () => {
 
     const [scoringWizardAxis, setScoringWizardAxis] = useState<Axis | null>(null);
 
-    const [viewingImages, setViewingImages] = useState<{ images: string[], initialIndex: number } | null>(null);
+    const [viewingImages, setViewingImages] = useState<{ images: string[], initialIndex: number, generatedImageUrls?: string[] } | null>(null);
     const [isCorrelationModalOpen, setIsCorrelationModalOpen] = useState(false);
     
     // Generation states
@@ -983,7 +983,7 @@ const AppContent: React.FC = () => {
                 filters={filters}
                 setFilters={setFilters}
                 filteredStyleIds={filteredStyleIds}
-                onViewImages={(images, initialIndex) => setViewingImages({images, initialIndex})}
+                onViewImages={(images, initialIndex, generatedUrls) => setViewingImages({images, initialIndex, generatedImageUrls: generatedUrls})}
                 onOpenCorrelationModal={() => setIsCorrelationModalOpen(true)}
             />
             
@@ -993,7 +993,7 @@ const AppContent: React.FC = () => {
                     axes={spaceData.axes}
                     onSave={handleSaveStyle}
                     onClose={() => { setIsStyleModalOpen(false); setEditingStyle(null); }}
-                    onViewImages={(images, initialIndex) => setViewingImages({images, initialIndex})}
+                    onViewImages={(images, initialIndex, generatedUrls) => setViewingImages({images, initialIndex, generatedImageUrls: generatedUrls})}
                 />
             )}
 
@@ -1012,7 +1012,7 @@ const AppContent: React.FC = () => {
                     styles={spaceData.styles}
                     onComplete={handleScoringWizardComplete}
                     onClose={() => setScoringWizardAxis(null)}
-                    onViewImages={(images, initialIndex) => setViewingImages({images, initialIndex})}
+                    onViewImages={(images, initialIndex, generatedUrls) => setViewingImages({images, initialIndex, generatedImageUrls: generatedUrls})}
                 />
             )}
 
@@ -1020,6 +1020,7 @@ const AppContent: React.FC = () => {
                 <ImageViewerModal
                     images={viewingImages.images}
                     initialIndex={viewingImages.initialIndex}
+                    generatedImageUrls={viewingImages.generatedImageUrls}
                     onClose={() => setViewingImages(null)}
                 />
             )}

@@ -10,7 +10,7 @@ interface ScoringWizardModalProps {
     styles: Style[];
     onComplete: (updatedStyles: Style[]) => void;
     onClose: () => void;
-    onViewImages: (images: string[], startIndex: number) => void;
+    onViewImages: (images: string[], startIndex: number, generatedImageUrls?: string[]) => void;
 }
 
 const ScoringWizardModal: React.FC<ScoringWizardModalProps> = ({ axis, styles, onComplete, onClose, onViewImages }) => {
@@ -72,7 +72,7 @@ const ScoringWizardModal: React.FC<ScoringWizardModalProps> = ({ axis, styles, o
                                             src={coverImageUrl}
                                             alt={style.name}
                                             className="w-12 h-12 object-cover rounded-md cursor-pointer"
-                                            onClick={() => onViewImages(style.images, style.coverImageIndex ?? 0)}
+                                            onClick={() => onViewImages(style.images, style.coverImageIndex ?? 0, style.generatedImageUrls)}
                                             title={t('scoringWizardModal.viewImagesTooltip', { styleName: style.name })}
                                         />
                                         {isAiGenerated && (

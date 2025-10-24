@@ -12,7 +12,7 @@ interface StyleEditorModalProps {
     axes: Axis[];
     onSave: (style: Style) => void;
     onClose: () => void;
-    onViewImages: (images: string[], startIndex: number) => void;
+    onViewImages: (images: string[], startIndex: number, generatedImageUrls?: string[]) => void;
 }
 
 /**
@@ -499,7 +499,7 @@ Return your scores in a JSON object format, where the keys are the exact axis na
                                         src={url} 
                                         alt={`Style image ${index + 1}`} 
                                         className={`rounded-md w-full h-full object-cover transition-all ${isSelected ? 'ring-4 ring-blue-500' : ''}`} 
-                                        onClick={() => onViewImages(formData.images, index)} 
+                                        onClick={() => onViewImages(formData.images, index, formData.generatedImageUrls)} 
                                     />
                                     <div className="absolute inset-0 bg-black bg-opacity-60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center space-x-2">
                                         <button type="button" title={t('styleEditorModal.selectForAITooltip')} onClick={(e) => { e.stopPropagation(); handleToggleImageSelection(url); }} className={`p-2 rounded-full hover:bg-black/50 ${isSelected ? 'text-blue-400' : 'text-white'}`}>
