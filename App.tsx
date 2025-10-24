@@ -14,10 +14,11 @@ import ScoringWizardModal from './components/ScoringWizardModal';
 import ImageViewerModal from './components/ImageViewerModal';
 import { downloadJson, uploadJson } from './utils/fileUtils';
 import { getSpaceDataFromDB, setSpaceDataInDB, clearSpaceDataFromDB } from './utils/dbUtils';
-import { SparklesIcon, PlusIcon, TrashIcon, EditIcon } from './components/icons';
+import { SparklesIcon, PlusIcon, TrashIcon, EditIcon, BarChart2Icon } from './components/icons';
 import { kmeans } from './utils/clustering';
 import { pca } from './utils/pca';
 import { LanguageProvider, useTranslation } from './i18n/i18n';
+import CorrelationModal from './components/CorrelationModal';
 
 const MIDPOINT_SCORE = (AXIS_SCORE_MAX + AXIS_SCORE_MIN) / 2;
 
@@ -35,6 +36,7 @@ interface RightSidebarProps {
     setFilters: (filters: Filter[]) => void;
     filteredStyleIds: string[];
     onViewImages: (images: string[], index: number) => void;
+    onOpenCorrelationModal: () => void;
 }
 
 const RightSidebar: React.FC<RightSidebarProps> = ({
@@ -51,6 +53,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
     setFilters,
     filteredStyleIds,
     onViewImages,
+    onOpenCorrelationModal,
 }) => {
     const { t } = useTranslation();
     const selectedStyle = spaceData.styles.find(s => s.id === selectedStyleId);
@@ -142,7 +145,10 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
             <div className="bg-gray-700 p-3 rounded-lg flex-1 flex flex-col min-h-0">
                 <div className="flex justify-between items-center mb-2">
                     <h2 className="text-lg font-semibold">{t('rightSidebar.axesListTitle', { count: spaceData.axes.length })}</h2>
-                    <button onClick={() => onOpenAxisModal(null)} className="p-1 rounded-md bg-blue-600 hover:bg-blue-700"><PlusIcon /></button>
+                    <div className="flex items-center space-x-1">
+                        <button onClick={onOpenCorrelationModal} className="p-1 rounded-md bg-indigo-600 hover:bg-indigo-700" title={t('rightSidebar.correlationButtonTooltip')}><BarChart2Icon /></button>
+                        <button onClick={() => onOpenAxisModal(null)} className="p-1 rounded-md bg-blue-600 hover:bg-blue-700"><PlusIcon /></button>
+                    </div>
                 </div>
                 <ul className="space-y-1 overflow-y-auto flex-1">
                     {spaceData.axes.map(axis => (
@@ -275,6 +281,7 @@ const AppContent: React.FC = () => {
     const [scoringWizardAxis, setScoringWizardAxis] = useState<Axis | null>(null);
 
     const [viewingImages, setViewingImages] = useState<{ images: string[], initialIndex: number } | null>(null);
+    const [isCorrelationModalOpen, setIsCorrelationModalOpen] = useState(false);
     
     // Generation states
     const [isGenerationPaused, setIsGenerationPaused] = useState<boolean>(false);
@@ -885,6 +892,7 @@ const AppContent: React.FC = () => {
                 setFilters={setFilters}
                 filteredStyleIds={filteredStyleIds}
                 onViewImages={(images, initialIndex) => setViewingImages({images, initialIndex})}
+                onOpenCorrelationModal={() => setIsCorrelationModalOpen(true)}
             />
             
             {isStyleModalOpen && editingStyle && (
@@ -921,6 +929,13 @@ const AppContent: React.FC = () => {
                     images={viewingImages.images}
                     initialIndex={viewingImages.initialIndex}
                     onClose={() => setViewingImages(null)}
+                />
+            )}
+
+            {isCorrelationModalOpen && spaceData && (
+                <CorrelationModal
+                    spaceData={spaceData}
+                    onClose={() => setIsCorrelationModalOpen(false)}
                 />
             )}
         </div>

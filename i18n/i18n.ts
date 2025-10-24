@@ -65,7 +65,8 @@ const en = {
     "editStyleTooltip": "Edit {styleName}",
     "viewGalleryText": "View Gallery",
     "noImageAvailableText": "No image available",
-    "noDescriptionText": "No description provided."
+    "noDescriptionText": "No description provided.",
+    "correlationButtonTooltip": "Analyze Axis Correlations"
   },
   "visualization": {
     "calculatingProjectionMessage": "Calculating {mode} projection...",
@@ -140,6 +141,16 @@ const en = {
   },
   "imageViewerModal": {
     "title": "Image Viewer ({current} / {total})"
+  },
+  "correlationModal": {
+    "title": "Axis Correlation Matrix",
+    "description": "This matrix shows the Pearson correlation coefficient between each pair of axes. Values range from -1 (strong negative correlation) to +1 (strong positive correlation). This helps identify redundant or related axes.",
+    "notEnoughAxes": "You need at least two axes to calculate correlations.",
+    "legendStrongPositive": "Strong Positive",
+    "legendModeratePositive": "Moderate Positive",
+    "legendWeak": "Weak / No Correlation",
+    "legendModerateNegative": "Moderate Negative",
+    "legendStrongNegative": "Strong Negative"
   }
 };
 
@@ -206,7 +217,8 @@ const ru = {
     "editStyleTooltip": "Редактировать {styleName}",
     "viewGalleryText": "Смотреть галерею",
     "noImageAvailableText": "Нет изображения",
-    "noDescriptionText": "Описание не предоставлено."
+    "noDescriptionText": "Описание не предоставлено.",
+    "correlationButtonTooltip": "Анализ корреляции осей"
   },
   "visualization": {
     "calculatingProjectionMessage": "Расчет проекции {mode}...",
@@ -281,6 +293,16 @@ const ru = {
   },
   "imageViewerModal": {
     "title": "Просмотр изображений ({current} / {total})"
+  },
+  "correlationModal": {
+    "title": "Матрица корреляции осей",
+    "description": "Эта матрица показывает коэффициент корреляции Пирсона для каждой пары осей. Значения варьируются от -1 (сильная отрицательная корреляция) до +1 (сильная положительная корреляция). Это помогает выявить избыточные или связанные оси.",
+    "notEnoughAxes": "Вам нужно как минимум две оси для расчета корреляций.",
+    "legendStrongPositive": "Сильная положительная",
+    "legendModeratePositive": "Умеренная положительная",
+    "legendWeak": "Слабая / Нет корреляции",
+    "legendModerateNegative": "Умеренная отрицательная",
+    "legendStrongNegative": "Сильная отрицательная"
   }
 };
 

@@ -224,9 +224,8 @@ Return your scores in a JSON object format, where the keys are the exact axis na
             if (parsedScores && typeof parsedScores === 'object' && !Array.isArray(parsedScores)) {
                 for (const axisName in parsedScores) {
                     if (Object.prototype.hasOwnProperty.call(parsedScores, axisName)) {
-                        // FIX: Cast `parsedScores` to `any` to allow indexing by string key `axisName`.
-                        // This resolves the "Type 'unknown' cannot be used as an index type" error, as `JSON.parse`
-                        // can be treated as returning `unknown` in strict environments.
+                        // FIX: Cast `parsedScores` to `any` to allow indexing by a string key. This is required
+                        // because JSON.parse returns `unknown` in strict mode, which cannot be indexed.
                         const score = (parsedScores as any)[axisName];
                         const axisId = nameToIdMap.get(axisName);
                         if (axisId && typeof score === 'number') {

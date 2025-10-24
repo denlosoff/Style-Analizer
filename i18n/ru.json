@@ -58,7 +58,12 @@
     "axesListTitle": "Оси ({count})",
     "stylesListTitle": "Стили ({count})",
     "stylesListFilteredTitle": "Стили ({filteredCount} / {totalCount})",
-    "addFilterError": "Создайте ось перед добавлением фильтра."
+    "addFilterError": "Создайте ось перед добавлением фильтра.",
+    "editStyleTooltip": "Редактировать {styleName}",
+    "viewGalleryText": "Смотреть галерею",
+    "noImageAvailableText": "Нет изображения",
+    "noDescriptionText": "Описание не предоставлено.",
+    "correlationButtonTooltip": "Анализ корреляции осей"
   },
   "visualization": {
     "calculatingProjectionMessage": "Расчет проекции {mode}...",
@@ -119,15 +124,29 @@
     "analyzingButton": "Анализ...",
     "analyzeAndScoreTooltip": "Использовать ИИ для автоматической оценки всех стилей на основе названия и описания этой оси.",
     "analysisSuccess": "Анализ завершен! Оценено стилей: {count}. Оценки будут применены при сохранении.",
-    "analysisError": "Ошибка анализа: {error}"
+    "analysisError": "Ошибка анализа: {error}",
+    "manuallyScoreButton": "Оценить все стили вручную",
+    "manuallyScoreTooltip": "Сохранить текущие данные оси и открыть мастер для ручной оценки каждого стиля."
   },
   "scoringWizardModal": {
     "title": "Оценка стилей для \"{axisName}\"",
     "description": "Установите оценку от {min} до {max} для каждого стиля на новой оси.",
     "applyScoresButton": "Применить оценки",
-    "cancelButton": "Отмена"
+    "cancelButton": "Отмена",
+    "viewImagesTooltip": "Посмотреть изображения для {styleName}",
+    "noImagesTooltip": "Для этого стиля нет изображений"
   },
   "imageViewerModal": {
     "title": "Просмотр изображений ({current} / {total})"
+  },
+  "correlationModal": {
+    "title": "Матрица корреляции осей",
+    "description": "Эта матрица показывает коэффициент корреляции Пирсона для каждой пары осей. Значения варьируются от -1 (сильная отрицательная корреляция) до +1 (сильная положительная корреляция). Это помогает выявить избыточные или связанные оси.",
+    "notEnoughAxes": "Вам нужно как минимум две оси для расчета корреляций.",
+    "legendStrongPositive": "Сильная положительная",
+    "legendModeratePositive": "Умеренная положительная",
+    "legendWeak": "Слабая / Нет корреляции",
+    "legendModerateNegative": "Умеренная отрицательная",
+    "legendStrongNegative": "Сильная отрицательная"
   }
 }
