@@ -14,7 +14,7 @@ import ScoringWizardModal from './components/ScoringWizardModal';
 import ImageViewerModal from './components/ImageViewerModal';
 import { downloadJson, uploadJson } from './utils/fileUtils';
 import { getSpaceDataFromDB, setSpaceDataInDB, clearSpaceDataFromDB } from './utils/dbUtils';
-import { SparklesIcon, PlusIcon, TrashIcon, EditIcon, BarChart2Icon } from './components/icons';
+import { SparklesIcon, PlusIcon, TrashIcon, EditIcon, BarChart2Icon, SearchIcon } from './components/icons';
 import { kmeans } from './utils/clustering';
 import { pca } from './utils/pca';
 import { LanguageProvider, useTranslation } from './i18n/i18n';
@@ -58,6 +58,11 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
     const { t } = useTranslation();
     const selectedStyle = spaceData.styles.find(s => s.id === selectedStyleId);
 
+    // State for search and sort
+    const [axesSearchTerm, setAxesSearchTerm] = useState('');
+    const [stylesSearchTerm, setStylesSearchTerm] = useState('');
+    const [stylesSortOrder, setStylesSortOrder] = useState('alphabetical-asc');
+
     const handleAddFilter = () => {
         const firstAxisId = spaceData.axes[0]?.id;
         if (!firstAxisId) {
@@ -82,6 +87,38 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
     const handleRemoveFilter = (id: string) => {
         setFilters(filters.filter(f => f.id !== id));
     };
+
+    const displayedAxes = useMemo(() => {
+        if (!axesSearchTerm) {
+            return spaceData.axes;
+        }
+        return spaceData.axes.filter(axis => 
+            axis.name.toLowerCase().includes(axesSearchTerm.toLowerCase())
+        );
+    }, [spaceData.axes, axesSearchTerm]);
+
+    const displayedStyles = useMemo(() => {
+        const searched = stylesSearchTerm
+            ? spaceData.styles.filter(style => style.name.toLowerCase().includes(stylesSearchTerm.toLowerCase()))
+            : [...spaceData.styles];
+
+        return searched.sort((a, b) => {
+            if (stylesSortOrder === 'alphabetical-asc') {
+                return a.name.localeCompare(b.name);
+            }
+            if (stylesSortOrder === 'alphabetical-desc') {
+                return b.name.localeCompare(a.name);
+            }
+            if (stylesSortOrder.startsWith('score-')) {
+                const [_, direction, axisId] = stylesSortOrder.split('-');
+                const scoreA = a.scores[axisId] ?? MIDPOINT_SCORE;
+                const scoreB = b.scores[axisId] ?? MIDPOINT_SCORE;
+                return direction === 'desc' ? scoreB - scoreA : scoreA - scoreB;
+            }
+            return 0;
+        });
+    }, [spaceData.styles, stylesSearchTerm, stylesSortOrder]);
+
 
     return (
         <aside className="w-96 bg-gray-800 p-4 flex flex-col space-y-4 overflow-y-auto">
@@ -144,14 +181,24 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
             {/* Axes List */}
             <div className="bg-gray-700 p-3 rounded-lg flex-1 flex flex-col min-h-0">
                 <div className="flex justify-between items-center mb-2">
-                    <h2 className="text-lg font-semibold">{t('rightSidebar.axesListTitle', { count: spaceData.axes.length })}</h2>
+                    <h2 className="text-lg font-semibold">{t('rightSidebar.axesListTitle', { count: displayedAxes.length })}</h2>
                     <div className="flex items-center space-x-1">
                         <button onClick={onOpenCorrelationModal} className="p-1 rounded-md bg-indigo-600 hover:bg-indigo-700" title={t('rightSidebar.correlationButtonTooltip')}><BarChart2Icon /></button>
                         <button onClick={() => onOpenAxisModal(null)} className="p-1 rounded-md bg-blue-600 hover:bg-blue-700"><PlusIcon /></button>
                     </div>
                 </div>
+                 <div className="relative mb-2">
+                    <input
+                        type="text"
+                        placeholder="Search axes..."
+                        value={axesSearchTerm}
+                        onChange={(e) => setAxesSearchTerm(e.target.value)}
+                        className="w-full bg-gray-900/50 border border-gray-600 rounded-md py-1 pl-8 pr-2 text-sm"
+                    />
+                    <SearchIcon className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
+                </div>
                 <ul className="space-y-1 overflow-y-auto flex-1">
-                    {spaceData.axes.map(axis => (
+                    {displayedAxes.map(axis => (
                         <li key={axis.id} className="flex items-center justify-between p-2 rounded-md bg-gray-800 hover:bg-gray-600">
                             <span className="flex items-center">
                                 <span className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: axis.color }}></span>
@@ -213,8 +260,34 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                     </h2>
                     <button onClick={() => onOpenStyleModal(null)} className="p-1 rounded-md bg-blue-600 hover:bg-blue-700"><PlusIcon /></button>
                 </div>
+                 <div className="flex items-center space-x-2 mb-2">
+                    <div className="relative flex-1">
+                        <input
+                            type="text"
+                            placeholder="Search styles..."
+                            value={stylesSearchTerm}
+                            onChange={(e) => setStylesSearchTerm(e.target.value)}
+                            className="w-full bg-gray-900/50 border border-gray-600 rounded-md py-1 pl-8 pr-2 text-sm"
+                        />
+                        <SearchIcon className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
+                    </div>
+                    <select
+                        value={stylesSortOrder}
+                        onChange={(e) => setStylesSortOrder(e.target.value)}
+                        className="bg-gray-900/50 border border-gray-600 rounded-md p-1 text-sm"
+                    >
+                        <option value="alphabetical-asc">A-Z</option>
+                        <option value="alphabetical-desc">Z-A</option>
+                        {spaceData.axes.map(axis => (
+                            <optgroup key={axis.id} label={axis.name}>
+                                <option value={`score-desc-${axis.id}`}>Score (High-Low)</option>
+                                <option value={`score-asc-${axis.id}`}>Score (Low-High)</option>
+                            </optgroup>
+                        ))}
+                    </select>
+                </div>
                 <ul className="space-y-1 overflow-y-auto flex-1">
-                    {spaceData.styles.map(style => (
+                    {displayedStyles.map(style => (
                         <li 
                             key={style.id}
                             onClick={() => setSelectedStyleId(style.id)}

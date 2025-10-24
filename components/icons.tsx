@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 
 const iconProps = {
@@ -86,4 +87,8 @@ export const CameraIcon: React.FC<{className?: string}> = ({className}) => (
 
 export const BarChart2Icon: React.FC<{className?: string}> = ({className}) => (
     <svg {...iconProps} className={className}><line x1="18" x2="18" y1="20" y2="10" /><line x1="12" x2="12" y1="20" y2="4" /><line x1="6" x2="6" y1="20" y2="14" /></svg>
+);
+
+export const SearchIcon: React.FC<{className?: string}> = ({className}) => (
+    <svg {...iconProps} className={className}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
 );

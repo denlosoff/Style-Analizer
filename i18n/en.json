@@ -140,13 +140,15 @@
     "title": "Image Viewer ({current} / {total})"
   },
   "correlationModal": {
-    "title": "Axis Correlation Matrix",
-    "description": "This matrix shows the Pearson correlation coefficient between each pair of axes. Values range from -1 (strong negative correlation) to +1 (strong positive correlation). This helps identify redundant or related axes.",
+    "title": "Axis Correlation Analysis",
+    "descriptionList": "This list shows pairs of axes with a Pearson correlation coefficient stronger than the selected threshold. This helps identify redundant or related axes.",
     "notEnoughAxes": "You need at least two axes to calculate correlations.",
     "legendStrongPositive": "Strong Positive",
     "legendModeratePositive": "Moderate Positive",
     "legendWeak": "Weak / No Correlation",
     "legendModerateNegative": "Moderate Negative",
-    "legendStrongNegative": "Strong Negative"
+    "legendStrongNegative": "Strong Negative",
+    "thresholdLabel": "Minimum correlation strength",
+    "noSignificantCorrelation": "No significant correlations found above {threshold}."
   }
 }

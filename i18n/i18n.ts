@@ -143,14 +143,16 @@ const en = {
     "title": "Image Viewer ({current} / {total})"
   },
   "correlationModal": {
-    "title": "Axis Correlation Matrix",
-    "description": "This matrix shows the Pearson correlation coefficient between each pair of axes. Values range from -1 (strong negative correlation) to +1 (strong positive correlation). This helps identify redundant or related axes.",
+    "title": "Axis Correlation Analysis",
+    "descriptionList": "This list shows pairs of axes with a Pearson correlation coefficient stronger than the selected threshold. This helps identify redundant or related axes.",
     "notEnoughAxes": "You need at least two axes to calculate correlations.",
     "legendStrongPositive": "Strong Positive",
     "legendModeratePositive": "Moderate Positive",
     "legendWeak": "Weak / No Correlation",
     "legendModerateNegative": "Moderate Negative",
-    "legendStrongNegative": "Strong Negative"
+    "legendStrongNegative": "Strong Negative",
+    "thresholdLabel": "Minimum correlation strength",
+    "noSignificantCorrelation": "No significant correlations found above {threshold}."
   }
 };
 
@@ -295,14 +297,16 @@ const ru = {
     "title": "Просмотр изображений ({current} / {total})"
   },
   "correlationModal": {
-    "title": "Матрица корреляции осей",
-    "description": "Эта матрица показывает коэффициент корреляции Пирсона для каждой пары осей. Значения варьируются от -1 (сильная отрицательная корреляция) до +1 (сильная положительная корреляция). Это помогает выявить избыточные или связанные оси.",
+    "title": "Анализ корреляции осей",
+    "descriptionList": "Этот список показывает пары осей с коэффициентом корреляции Пирсона, превышающим выбранный порог. Это помогает выявить избыточные или связанные оси.",
     "notEnoughAxes": "Вам нужно как минимум две оси для расчета корреляций.",
     "legendStrongPositive": "Сильная положительная",
     "legendModeratePositive": "Умеренная положительная",
     "legendWeak": "Слабая / Нет корреляции",
     "legendModerateNegative": "Умеренная отрицательная",
-    "legendStrongNegative": "Сильная отрицательная"
+    "legendStrongNegative": "Сильная отрицательная",
+    "thresholdLabel": "Минимальная сила корреляции",
+    "noSignificantCorrelation": "Значимых корреляций выше {threshold} не найдено."
   }
 };
 
