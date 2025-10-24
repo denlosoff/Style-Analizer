@@ -59,53 +59,64 @@ const ScoringWizardModal: React.FC<ScoringWizardModalProps> = ({ axis, styles, o
         <Modal title={t('scoringWizardModal.title', { axisName: axis.name })} onClose={onClose} footer={footer} size="lg">
             <p className="mb-4 text-gray-400">{t('scoringWizardModal.description', { min: AXIS_SCORE_MIN, max: AXIS_SCORE_MAX })}</p>
             <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-2">
-                {styles.map(style => (
-                    <div key={style.id} className="grid grid-cols-[52px_1fr_auto] items-center gap-x-4 p-2 rounded-md hover:bg-gray-700/50">
-                        {/* Column 1: Image */}
-                        <div>
-                            {style.images.length > 0 ? (
-                                <img
-                                    src={style.images[style.coverImageIndex ?? 0]}
-                                    alt={style.name}
-                                    className="w-12 h-12 object-cover rounded-md cursor-pointer"
-                                    onClick={() => onViewImages(style.images, style.coverImageIndex ?? 0)}
-                                    title={t('scoringWizardModal.viewImagesTooltip', { styleName: style.name })}
+                {styles.map(style => {
+                    const coverImageUrl = style.images[style.coverImageIndex ?? 0];
+                    const isAiGenerated = style.generatedImageUrls?.includes(coverImageUrl);
+                    return (
+                        <div key={style.id} className="grid grid-cols-[52px_1fr_auto] items-center gap-x-4 p-2 rounded-md hover:bg-gray-700/50">
+                            {/* Column 1: Image */}
+                            <div className="relative">
+                                {style.images.length > 0 ? (
+                                    <>
+                                        <img
+                                            src={coverImageUrl}
+                                            alt={style.name}
+                                            className="w-12 h-12 object-cover rounded-md cursor-pointer"
+                                            onClick={() => onViewImages(style.images, style.coverImageIndex ?? 0)}
+                                            title={t('scoringWizardModal.viewImagesTooltip', { styleName: style.name })}
+                                        />
+                                        {isAiGenerated && (
+                                            <div className="absolute bottom-1 right-1 bg-purple-600 text-white text-xs font-bold px-1.5 py-0.5 rounded pointer-events-none">
+                                                AI
+                                            </div>
+                                        )}
+                                    </>
+                                ) : (
+                                    <div className="w-12 h-12 bg-gray-900 rounded-md flex items-center justify-center text-gray-500" title={t('scoringWizardModal.noImagesTooltip')}>
+                                        <CameraIcon className="w-6 h-6" />
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Column 2: Name and Slider */}
+                            <div className="w-full">
+                                <label className="font-medium truncate block mb-1" title={style.name}>{style.name}</label>
+                                <input
+                                    type="range"
+                                    min={AXIS_SCORE_MIN}
+                                    max={AXIS_SCORE_MAX}
+                                    step="0.1"
+                                    value={scores[style.id]}
+                                    onChange={(e) => handleScoreChange(style.id, e.target.value)}
+                                    className="w-full"
                                 />
-                            ) : (
-                                <div className="w-12 h-12 bg-gray-900 rounded-md flex items-center justify-center text-gray-500" title={t('scoringWizardModal.noImagesTooltip')}>
-                                    <CameraIcon className="w-6 h-6" />
-                                </div>
-                            )}
-                        </div>
+                            </div>
 
-                        {/* Column 2: Name and Slider */}
-                        <div className="w-full">
-                            <label className="font-medium truncate block mb-1" title={style.name}>{style.name}</label>
-                            <input
-                                type="range"
-                                min={AXIS_SCORE_MIN}
-                                max={AXIS_SCORE_MAX}
-                                step="0.1"
-                                value={scores[style.id]}
-                                onChange={(e) => handleScoreChange(style.id, e.target.value)}
-                                className="w-full"
-                            />
+                            {/* Column 3: Number input */}
+                            <div className="pt-5"> {/* align with slider */}
+                                <input
+                                    type="number"
+                                    min={AXIS_SCORE_MIN}
+                                    max={AXIS_SCORE_MAX}
+                                    step="0.1"
+                                    value={scores[style.id]}
+                                    onChange={(e) => handleScoreChange(style.id, e.target.value)}
+                                    className="w-20 bg-gray-900 border border-gray-600 rounded-md p-1 text-center"
+                                />
+                            </div>
                         </div>
-
-                        {/* Column 3: Number input */}
-                        <div className="pt-5"> {/* align with slider */}
-                            <input
-                                type="number"
-                                min={AXIS_SCORE_MIN}
-                                max={AXIS_SCORE_MAX}
-                                step="0.1"
-                                value={scores[style.id]}
-                                onChange={(e) => handleScoreChange(style.id, e.target.value)}
-                                className="w-20 bg-gray-900 border border-gray-600 rounded-md p-1 text-center"
-                            />
-                        </div>
-                    </div>
-                ))}
+                    )
+                })}
             </div>
         </Modal>
     );

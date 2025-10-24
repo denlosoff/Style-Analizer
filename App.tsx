@@ -234,6 +234,11 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                                 className="w-full h-48 object-cover rounded-md cursor-pointer"
                                 onClick={() => onViewImages(selectedStyle.images, selectedStyle.coverImageIndex ?? 0)}
                             />
+                            {selectedStyle.generatedImageUrls?.includes(selectedStyle.images[selectedStyle.coverImageIndex ?? 0]) && (
+                                <div className="absolute bottom-1 right-1 bg-purple-600 text-white text-xs font-bold px-1.5 py-0.5 rounded pointer-events-none">
+                                    AI
+                                </div>
+                            )}
                             <div 
                                 className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer rounded-md"
                                 onClick={() => onViewImages(selectedStyle.images, selectedStyle.coverImageIndex ?? 0)}
@@ -402,8 +407,15 @@ const AppContent: React.FC = () => {
             try {
                 const savedData = await getSpaceDataFromDB();
                 if (savedData) {
-                    setSpaceData(savedData);
-                    const hasMissingImages = savedData.styles.some(s => s.images.length === 0);
+                    const migratedData = {
+                        ...savedData,
+                        styles: savedData.styles.map(s => ({
+                            ...s,
+                            generatedImageUrls: s.generatedImageUrls || []
+                        }))
+                    };
+                    setSpaceData(migratedData);
+                    const hasMissingImages = migratedData.styles.some(s => s.images.length === 0);
                     // Only show the resume button if there are missing images AND an API key is available.
                     if (hasMissingImages && process.env.API_KEY) {
                         setIsGenerationPaused(true);
@@ -742,7 +754,7 @@ const AppContent: React.FC = () => {
             const style = spaceData.styles.find(s => s.id === styleId);
             if (style) setEditingStyle(style);
         } else {
-            setEditingStyle({ id: uuidvv4(), name: 'New Style', scores: {}, images: [], description: '', generationPrompt: 'A high-quality, artistic photograph of a single cup.', coverImageIndex: 0 });
+            setEditingStyle({ id: uuidvv4(), name: 'New Style', scores: {}, images: [], description: '', generationPrompt: 'A high-quality, artistic photograph of a single cup.', coverImageIndex: 0, generatedImageUrls: [] });
         }
         setIsStyleModalOpen(true);
     }, [spaceData]);
@@ -768,7 +780,14 @@ const AppContent: React.FC = () => {
         try {
             const data = await uploadJson<SpaceData>();
             if (data && Array.isArray(data.axes) && Array.isArray(data.styles)) {
-                await updateSpaceData(data);
+                const migratedData = {
+                    ...data,
+                    styles: data.styles.map(s => ({
+                        ...s,
+                        generatedImageUrls: s.generatedImageUrls || []
+                    }))
+                };
+                await updateSpaceData(migratedData);
                 setDimension(2);
                 setSelectedStyleId(null);
             } else {
@@ -842,7 +861,7 @@ const AppContent: React.FC = () => {
                             if (!prevData) return null;
                             const updatedStyles = prevData.styles.map(s => 
                                 s.id === styleToUpdate.id 
-                                    ? { ...s, images: [imageUrl], coverImageIndex: 0 } 
+                                    ? { ...s, images: [imageUrl], coverImageIndex: 0, generatedImageUrls: [...(s.generatedImageUrls || []), imageUrl] } 
                                     : s
                             );
                             const newData = { ...prevData, styles: updatedStyles };

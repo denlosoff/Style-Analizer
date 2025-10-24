@@ -27,7 +27,10 @@ function parseDataUrl(dataUrl: string): { data: string; mimeType: string } {
         console.error('Invalid data URL:', dataUrl.substring(0, 50) + '...');
         throw new Error('Invalid data URL format.');
     }
-    return { data, mimeType: mimeTypePart };
+    // Normalize 'image/jpg' to 'image/jpeg' for Gemini API compatibility.
+    const normalizedMimeType = mimeTypePart.toLowerCase() === 'image/jpg' ? 'image/jpeg' : mimeTypePart;
+
+    return { data, mimeType: normalizedMimeType };
 }
 
 
@@ -121,7 +124,14 @@ const StyleEditorModal: React.FC<StyleEditorModalProps> = ({ style, axes, onSave
             if (!process.env.API_KEY) throw new Error("API_KEY environment variable not set.");
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
             
-            const textPrompt = `Analyze the provided style name and any reference images to generate a concise, artistic description for the style. Style name: '${formData.name}'.`;
+            const textPrompt = `Provide a technical and analytical description for the style named '${formData.name}', based on its name and any provided reference images. The description must be under 100 words.
+
+**CRITICAL INSTRUCTION:** If reference images are used, IGNORE the subject matter (e.g., people, objects) and focus exclusively on the *style of execution* (e.g., brushstrokes, color palette, linework, texture).
+
+The description must include:
+1.  **Core Definition**: A clear, concise definition of the style.
+2.  **Visual Techniques**: The primary visual methods or processes used.
+3.  **Essential Characteristics**: What makes the style unique and recognizable.`;
             const imageParts: { inlineData: { data: string; mimeType: string; } }[] = [];
 
             if (formData.images.length > 0) {
@@ -160,7 +170,15 @@ const StyleEditorModal: React.FC<StyleEditorModalProps> = ({ style, axes, onSave
             if (!process.env.API_KEY) throw new Error("API_KEY environment variable not set.");
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
             
-            const textPrompt = `You are an expert art critic. Based on the style name '${formData.name}' and the following reference image(s), write a new, concise, and insightful description for this style. Focus on capturing the key visual characteristics.`;
+            const textPrompt = `You are an expert art critic. Analyze the provided reference image(s) for the style named '${formData.name}'. Based *only* on the visual evidence in the images, provide a new, technical, and analytical description. The final description must be under 100 words.
+
+**CRITICAL INSTRUCTION:** IGNORE the subject matter (e.g., people, objects, scenes) depicted in the images. Focus exclusively on the *style of execution* (e.g., brushstrokes, color palette, linework, texture).
+
+Your analysis should focus on:
+- **Visual Technique:** The core method used (e.g., oil painting, pixel art, cel-shading).
+- **Linework & Form:** The nature of lines and shapes (e.g., sharp, soft, geometric, organic).
+- **Color & Light:** The color palette and use of light/shadow.
+- **Texture & Detail:** The surface quality and level of detail.`;
             
             const imageParts = selectedImageUrls.map(url => ({ inlineData: parseDataUrl(url) }));
             

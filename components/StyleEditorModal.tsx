@@ -28,7 +28,11 @@ function parseDataUrl(dataUrl: string): { data: string; mimeType: string } {
         console.error('Invalid data URL:', dataUrl.substring(0, 50) + '...');
         throw new Error('Invalid data URL format.');
     }
-    return { data, mimeType: mimeTypePart };
+    
+    // Normalize 'image/jpg' to 'image/jpeg' for Gemini API compatibility.
+    const normalizedMimeType = mimeTypePart.toLowerCase() === 'image/jpg' ? 'image/jpeg' : mimeTypePart;
+
+    return { data, mimeType: normalizedMimeType };
 }
 
 
@@ -97,7 +101,8 @@ const StyleEditorModal: React.FC<StyleEditorModalProps> = ({ style, axes, onSave
             return {
                 ...prev,
                 images: newImages,
-                coverImageIndex: Math.max(0, newCoverIndex)
+                coverImageIndex: Math.max(0, newCoverIndex),
+                generatedImageUrls: prev.generatedImageUrls?.filter(genUrl => genUrl !== url)
             };
         });
         // Also remove from selection
@@ -123,7 +128,18 @@ const StyleEditorModal: React.FC<StyleEditorModalProps> = ({ style, axes, onSave
             if (!process.env.API_KEY) throw new Error("API_KEY environment variable not set.");
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
             
-            const textPrompt = `Analyze the provided style name and any reference images to generate a concise, artistic description for the style. Style name: '${formData.name}'.`;
+            const axesDescriptions = axes.map(a => `- ${a.name}: ${a.description}`).join('\n');
+            const textPrompt = `Provide a technical and analytical description for the style named '${formData.name}', based on its name and any provided reference images. The description must be under 100 words.
+
+**CRITICAL INSTRUCTION:** If reference images are used, IGNORE the subject matter (e.g., people, objects) and focus exclusively on the *style of execution* (e.g., brushstrokes, color palette, linework, texture).
+
+The description must include:
+1.  **Core Definition**: A clear, concise definition of the style.
+2.  **Visual Techniques**: The primary visual methods or processes used.
+3.  **Essential Characteristics**: What makes the style unique and recognizable.
+4.  **Relationship to Analytical Axes**: Briefly explain how the style typically rates on these axes:
+    ${axesDescriptions}`;
+            
             const imageParts: { inlineData: { data: string; mimeType: string; } }[] = [];
 
             if (formData.images.length > 0) {
@@ -162,7 +178,17 @@ const StyleEditorModal: React.FC<StyleEditorModalProps> = ({ style, axes, onSave
             if (!process.env.API_KEY) throw new Error("API_KEY environment variable not set.");
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
             
-            const textPrompt = `You are an expert art critic. Based on the style name '${formData.name}' and the following reference image(s), write a new, concise, and insightful description for this style. Focus on capturing the key visual characteristics.`;
+            const axesDescriptions = axes.map(a => `- ${a.name}: ${a.description}`).join('\n');
+            const textPrompt = `You are an expert art critic. Analyze the provided reference image(s) for the style named '${formData.name}'. Based *only* on the visual evidence in the images, provide a new, technical, and analytical description. The final description must be under 100 words.
+
+**CRITICAL INSTRUCTION:** IGNORE the subject matter (e.g., people, objects, scenes) depicted in the images. Focus exclusively on the *style of execution* (e.g., brushstrokes, color palette, linework, texture).
+
+The description must be structured to include:
+1.  **Core Definition**: A clear, concise definition of the style as represented in the image(s).
+2.  **Visual Techniques**: The specific visual methods and processes you observe.
+3.  **Essential Characteristics**: The key, indispensable visual elements in the image(s) that define this style. What makes it unique?
+4.  **Relationship to Analytical Axes**: Based on the image(s), briefly explain how the style rates on these axes:
+    ${axesDescriptions}`;
             
             const imageParts = selectedImageUrls.map(url => ({ inlineData: parseDataUrl(url) }));
             
@@ -279,9 +305,11 @@ Return your scores in a JSON object format, where the keys are the exact axis na
             
             setFormData(prev => {
                 const newImages = [...prev.images, imageUrl];
+                const newGeneratedUrls = [...(prev.generatedImageUrls || []), imageUrl];
                 return {
                     ...prev,
                     images: newImages,
+                    generatedImageUrls: newGeneratedUrls,
                     coverImageIndex: newImages.length === 1 ? 0 : prev.coverImageIndex
                 };
             });
@@ -464,6 +492,7 @@ Return your scores in a JSON object format, where the keys are the exact axis na
                      <div className="grid grid-cols-3 gap-2 mt-2">
                         {formData.images.map((url, index) => {
                             const isSelected = selectedImageUrls.includes(url);
+                            const isAiGenerated = formData.generatedImageUrls?.includes(url);
                             return (
                                 <div key={url.substring(0, 50) + index} className="relative group aspect-square">
                                     <img 
@@ -483,6 +512,11 @@ Return your scores in a JSON object format, where the keys are the exact axis na
                                             <TrashIcon />
                                         </button>
                                     </div>
+                                    {isAiGenerated && (
+                                        <div className="absolute bottom-1 right-1 bg-purple-600 text-white text-xs font-bold px-1.5 py-0.5 rounded pointer-events-none">
+                                            AI
+                                        </div>
+                                    )}
                                     {formData.coverImageIndex === index && (
                                         <div className="absolute top-1 left-1 p-1 bg-yellow-400 rounded-full text-black pointer-events-none">
                                             <StarIcon className="w-4 h-4" isFilled={true} />

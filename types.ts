@@ -6,6 +6,7 @@ export interface Style {
     description: string;
     generationPrompt: string;
     coverImageIndex: number;
+    generatedImageUrls?: string[];
 }
 
 export interface Axis {
